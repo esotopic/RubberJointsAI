@@ -1,0 +1,36 @@
+# Build results
+bin/
+obj/
+
+# Visual Studio
+.vs/
+*.user
+*.sln.docstates
+
+# Settings
+appsettings.Development.json
+
+# IDE
+.vscode/
+.idea/
+
+# User-specific files
+*.suo
+*.userosscache
+*.sln.docstates
+*.vcxproj.user
+
+# Rider
+.idea/
+*.sln.iml
+*.DotSettings.user
+
+# macOS
+.DS_Store
+
+# Log files
+*.log
+
+# Local environment variables
+.env
+.env.local

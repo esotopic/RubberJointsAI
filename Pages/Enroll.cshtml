@@ -1,0 +1,107 @@
+@page
+@model EnrollModel
+
+@{
+    ViewData["Title"] = "Enroll in a Program";
+}
+
+<div style="max-width: 480px; margin: 0 auto; padding: 20px; color: var(--tx);">
+    <h1 style="font-size: 28px; font-weight: 600; margin-bottom: 24px;">Enroll in a Program</h1>
+
+    @if (!string.IsNullOrEmpty(Model.ErrorMessage))
+    {
+        <div style="background-color: #ff3b30; color: white; padding: 12px 16px; border-radius: 8px; margin-bottom: 16px; font-size: 14px;">
+            @Model.ErrorMessage
+        </div>
+    }
+
+    @if (Model.ActiveEnrollment != null)
+    {
+        <div class="settings-card" style="margin-bottom: 24px;">
+            <div class="settings-card-title">Current Enrollment</div>
+            <div style="padding: 16px; border-top: 1px solid var(--tx3);">
+                <div style="margin-bottom: 12px;">
+                    <div style="font-size: 12px; color: var(--tx2); margin-bottom: 4px;">Program</div>
+                    <div style="font-size: 16px; font-weight: 500;">@Model.ActiveEnrollment.ProgramName</div>
+                </div>
+                <div style="margin-bottom: 16px;">
+                    <div style="font-size: 12px; color: var(--tx2); margin-bottom: 4px;">Start Date</div>
+                    <div style="font-size: 14px;">@Model.ActiveEnrollment.StartDate</div>
+                </div>
+                <form method="post" style="display: inline;">
+                    <input type="hidden" name="programId" value="@Model.ActiveEnrollment.ProgramId" />
+                    <input type="hidden" name="startDate" value="@DateTime.UtcNow.ToString("yyyy-MM-dd")" />
+                    <button type="submit" style="background-color: var(--acc); color: white; border: none; padding: 8px 16px; border-radius: 6px; font-size: 14px; cursor: pointer; font-weight: 500;">
+                        Restart Program
+                    </button>
+                </form>
+            </div>
+        </div>
+        <div style="text-align: center; margin-bottom: 24px; color: var(--tx2); font-size: 14px;">
+            Or select a different program below to switch
+        </div>
+    }
+
+    @if (Model.Programs.Count > 0)
+    {
+        <div style="display: grid; gap: 16px;">
+            @foreach (var program in Model.Programs)
+            {
+                <div class="settings-card">
+                    <div class="settings-card-title">@program.Name</div>
+                    <div style="padding: 16px;">
+                        <div style="margin-bottom: 12px;">
+                            <div style="font-size: 12px; color: var(--tx2); margin-bottom: 4px;">Duration</div>
+                            <div style="font-size: 14px; color: var(--tx);">@(program.DurationDays / 7) weeks</div>
+                        </div>
+                        @if (!string.IsNullOrEmpty(program.Description))
+                        {
+                            <div style="margin-bottom: 16px;">
+                                <div style="font-size: 12px; color: var(--tx2); margin-bottom: 4px;">Description</div>
+                                <div style="font-size: 14px; color: var(--tx); line-height: 1.5;">@program.Description</div>
+                            </div>
+                        }
+                        <div style="margin-bottom: 16px;">
+                            <label style="display: block; font-size: 12px; color: var(--tx2); margin-bottom: 8px;">
+                                Start Date
+                            </label>
+                            <input type="date" id="startDate_@program.Id" name="startDate_@program.Id"
+                                   value="@DateTime.UtcNow.ToString("yyyy-MM-dd")"
+                                   style="width: 100%; padding: 8px 12px; border: 1px solid var(--tx3); border-radius: 6px; font-size: 14px; box-sizing: border-box; color: var(--tx);" />
+                        </div>
+                        <form method="post" style="display: inline;">
+                            <input type="hidden" name="programId" value="@program.Id" />
+                            <input type="hidden" name="startDate" id="hiddenStartDate_@program.Id" />
+                            <button type="button" onclick="setStartDate(@program.Id)"
+                                    style="width: 100%; background-color: var(--grn); color: white; border: none; padding: 10px 16px; border-radius: 6px; font-size: 14px; font-weight: 500; cursor: pointer;">
+                                Start Program
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            }
+        </div>
+    }
+    else
+    {
+        <div class="settings-card">
+            <div style="padding: 24px; text-align: center; color: var(--tx2);">
+                No programs available at this time.
+            </div>
+        </div>
+    }
+</div>
+
+<script>
+    function setStartDate(programId) {
+        const dateInput = document.getElementById('startDate_' + programId);
+        const hiddenInput = document.getElementById('hiddenStartDate_' + programId);
+
+        if (dateInput.value) {
+            hiddenInput.value = dateInput.value;
+            hiddenInput.form.submit();
+        } else {
+            alert('Please select a start date');
+        }
+    }
+</script>

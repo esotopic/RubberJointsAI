@@ -1,0 +1,738 @@
+@page
+@model IndexModel
+
+@{
+    ViewData["Title"] = "Today";
+
+    // Calculate category progress for bars
+    var mobilitySteps = Model.ViewModel.Steps.Where(s => s.Exercise.Category == "mobility").ToList();
+    var recoverySteps = Model.ViewModel.Steps.Where(s => s.Exercise.Category == "recovery_tool").ToList();
+    var warmupSteps = Model.ViewModel.Steps.Where(s => s.Exercise.Category == "warmup_tool").ToList();
+    var strengthSteps = Model.ViewModel.Steps.Where(s => s.Exercise.Category == "strength").ToList();
+
+    int mobilityDone = mobilitySteps.Count(s => s.Checked);
+    int mobilityTotal = mobilitySteps.Count;
+    int recoveryDone = recoverySteps.Count(s => s.Checked);
+    int recoveryTotal = recoverySteps.Count;
+    int warmupDone = warmupSteps.Count(s => s.Checked);
+    int warmupTotal = warmupSteps.Count;
+    int suppsDone = Model.ViewModel.Supplements.Count(s => s.Checked);
+    int suppsTotal = Model.ViewModel.Supplements.Count;
+
+    // Weekly calendar — anchored to the week containing the selected date
+    var selectedDate = DateTime.TryParse(Model.ViewModel.SelectedDate, out var sd) ? sd : DateTime.UtcNow;
+    var actualToday = DateTime.UtcNow;
+    var monday = selectedDate.AddDays(-(int)selectedDate.DayOfWeek + (int)DayOfWeek.Monday);
+    if (selectedDate.DayOfWeek == DayOfWeek.Sunday) monday = monday.AddDays(-7);
+
+    bool isFuture = Model.ViewModel.IsFuture;
+    bool isToday = Model.ViewModel.IsToday;
+}
+
+<div class="page-content">
+    @if (Model.ViewModel.ErrorMessage == "NO_ENROLLMENT")
+    {
+        <div class="settings-card" style="margin:24px 16px;text-align:center;">
+            <div class="settings-card-title" style="margin-bottom:8px;">Welcome to RubberJointsAI</div>
+            <p style="color:var(--tx3);font-size:13px;margin-bottom:16px;">You don't have an active program. Pick one to get started!</p>
+            <a href="/Enroll" style="display:inline-block;background:var(--acc);color:#fff;padding:10px 24px;border-radius:10px;text-decoration:none;font-weight:600;font-size:14px;">Choose a Program</a>
+        </div>
+    }
+    else if (!string.IsNullOrEmpty(Model.ViewModel.ErrorMessage))
+    {
+        <div class="error-banner">@Model.ViewModel.ErrorMessage</div>
+    }
+
+    <!-- Day Navigation Header -->
+    <section class="day-nav">
+        <a href="/?date=@Model.ViewModel.PrevDate" class="day-nav-arrow">&lsaquo;</a>
+        <div class="day-nav-center">
+            <div class="day-nav-label">
+                @if (isToday)
+                {
+                    <span>Today</span>
+                }
+                else
+                {
+                    <span>@Model.ViewModel.SelectedDateLabel</span>
+                }
+            </div>
+            @if (!isToday)
+            {
+                <a href="/" class="day-nav-today-link">Back to Today</a>
+            }
+        </div>
+        <a href="/?date=@Model.ViewModel.NextDate" class="day-nav-arrow">&rsaquo;</a>
+    </section>
+
+    <!-- Activity Summary -->
+    <section class="activity-summary">
+        <h2 class="activity-title">@(isToday ? "Today's Activity" : Model.ViewModel.SelectedDateLabel)</h2>
+        <p class="activity-subtitle">@Model.ViewModel.DayName · @Model.ViewModel.SessionType</p>
+        @if (isFuture)
+        {
+            <div style="background:var(--acc);color:#fff;display:inline-block;padding:3px 10px;border-radius:6px;font-size:11px;font-weight:600;margin-top:4px;">PREVIEW</div>
+        }
+
+        <div class="progress-bars">
+            @if (warmupTotal > 0)
+            {
+                <div class="progress-row">
+                    <div class="progress-label">
+                        <span class="progress-dot" style="background:#ff9500;"></span>
+                        <span>Warm-up</span>
+                    </div>
+                    <div class="progress-track">
+                        <div class="progress-fill" id="bar-warmup_tool" style="width:@(warmupTotal > 0 ? (warmupDone * 100 / warmupTotal) : 0)%;background:#ff9500;"></div>
+                    </div>
+                    <span class="progress-count" id="count-warmup_tool">@warmupDone/@warmupTotal</span>
+                </div>
+            }
+            @if (mobilityTotal > 0)
+            {
+                <div class="progress-row">
+                    <div class="progress-label">
+                        <span class="progress-dot" style="background:#34c759;"></span>
+                        <span>Mobility</span>
+                    </div>
+                    <div class="progress-track">
+                        <div class="progress-fill" id="bar-mobility" style="width:@(mobilityTotal > 0 ? (mobilityDone * 100 / mobilityTotal) : 0)%;background:#34c759;"></div>
+                    </div>
+                    <span class="progress-count" id="count-mobility">@mobilityDone/@mobilityTotal</span>
+                </div>
+            }
+            @if (recoveryTotal > 0)
+            {
+                <div class="progress-row">
+                    <div class="progress-label">
+                        <span class="progress-dot" style="background:#4a6cf7;"></span>
+                        <span>Recovery</span>
+                    </div>
+                    <div class="progress-track">
+                        <div class="progress-fill" id="bar-recovery_tool" style="width:@(recoveryTotal > 0 ? (recoveryDone * 100 / recoveryTotal) : 0)%;background:#4a6cf7;"></div>
+                    </div>
+                    <span class="progress-count" id="count-recovery_tool">@recoveryDone/@recoveryTotal</span>
+                </div>
+            }
+            @if (suppsTotal > 0)
+            {
+                <div class="progress-row">
+                    <div class="progress-label">
+                        <span class="progress-dot" style="background:#ffcc00;"></span>
+                        <span>Vitamins</span>
+                    </div>
+                    <div class="progress-track">
+                        <div class="progress-fill" id="bar-supplements" style="width:@(suppsTotal > 0 ? (suppsDone * 100 / suppsTotal) : 0)%;background:#ffcc00;"></div>
+                    </div>
+                    <span class="progress-count" id="count-supplements">@suppsDone/@suppsTotal</span>
+                </div>
+            }
+        </div>
+    </section>
+
+    <!-- Weekly Calendar — clickable days -->
+    <section class="week-calendar">
+        @for (int i = 0; i < 7; i++)
+        {
+            var day = monday.AddDays(i);
+            var isSelected = day.Date == selectedDate.Date;
+            var isActualToday = day.Date == actualToday.Date;
+            var isPast = day.Date < actualToday.Date;
+            var dayLabel = day.ToString("ddd").Substring(0, 3).ToUpper();
+            var dayNum = day.Day;
+            var dateParam = day.ToString("yyyy-MM-dd");
+            var dayHref = day.Date == actualToday.Date ? "/" : $"/?date={dateParam}";
+            <a href="@dayHref" class="week-day @(isSelected ? "selected" : "") @(isActualToday ? "today" : "") @(isPast ? "past" : "")" style="text-decoration:none;color:inherit;">
+                <span class="week-day-label">@dayLabel</span>
+                <span class="week-day-num">@dayNum</span>
+            </a>
+        }
+    </section>
+
+    <!-- Exercise Groups — always show standard categories -->
+    @{
+        // Build list of categories to display: always include the 3 standard ones,
+        // plus strength if any strength exercises exist
+        var allCategories = new List<string> { "warmup_tool", "mobility", "recovery_tool" };
+        if (Model.ViewModel.Steps.Any(s => s.Exercise.Category == "strength"))
+        {
+            allCategories.Insert(2, "strength"); // insert before recovery
+        }
+        var stepsByCategory = Model.ViewModel.Steps
+            .GroupBy(s => s.Exercise.Category)
+            .ToDictionary(g => g.Key, g => g.ToList());
+    }
+
+    @foreach (var cat in allCategories)
+    {
+        var catSteps = stepsByCategory.ContainsKey(cat) ? stepsByCategory[cat] : new List<RubberJointsAI.Models.TodayStep>();
+        var catDone = catSteps.Count(s => s.Checked);
+        var catTotal = catSteps.Count;
+
+        <div class="session-group" data-category="@cat">
+            <div class="session-group-header">
+                <span class="dot" style="background-color: @GetCategoryColor(cat);"></span>
+                <span>@GetSectionLabel(cat)</span>
+                <span class="group-progress">@catDone/@catTotal</span>
+                @if (!isFuture)
+                {
+                    <button class="add-exercise-btn" data-category="@cat" title="Add exercise">+</button>
+                }
+            </div>
+            @if (catTotal == 0)
+            {
+                <div class="empty-section-hint">
+                    @if (!isFuture)
+                    {
+                        <span>Tap + to add exercises</span>
+                    }
+                    else
+                    {
+                        <span>No exercises scheduled</span>
+                    }
+                </div>
+            }
+            @foreach (var step in catSteps)
+            {
+                <div class="check-item @(step.Checked ? "done" : "") @(isFuture ? "read-only" : "")" data-step-id="@step.SessionStepId" data-step-index="@step.Index" data-category="@step.Exercise.Category" data-exercise-id="@step.Exercise.Id">
+                    @if (!isFuture)
+                    {
+                        <div class="check-box"></div>
+                    }
+                    else
+                    {
+                        <div class="check-box-preview"></div>
+                    }
+                    <div class="check-info">
+                        <span class="check-name">@step.Exercise.Name</span>
+                        <span class="check-sub">@step.Exercise.Targets</span>
+                    </div>
+                    <span class="check-reps">@step.Rx</span>
+                </div>
+                <div class="detail" data-detail-for="@step.SessionStepId">
+                    <p>@step.Exercise.Description</p>
+                    @if (!string.IsNullOrEmpty(step.Exercise.Cues))
+                    {
+                        <ul>
+                            @foreach (var cue in step.Exercise.Cues.Split('|'))
+                            {
+                                <li>@cue.Trim()</li>
+                            }
+                        </ul>
+                    }
+                    @if (!string.IsNullOrEmpty(step.Exercise.Warning))
+                    {
+                        <p class="detail-warning">@step.Exercise.Warning</p>
+                    }
+                    <a href="https://www.youtube.com/results?search_query=@(Uri.EscapeDataString(GetYouTubeQuery(step.Exercise)))"
+                       target="_blank" rel="noopener" class="yt-demo-link">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M23.5 6.2a3 3 0 00-2.1-2.1C19.5 3.5 12 3.5 12 3.5s-7.5 0-9.4.6A3 3 0 00.5 6.2 31.9 31.9 0 000 12a31.9 31.9 0 00.5 5.8 3 3 0 002.1 2.1c1.9.6 9.4.6 9.4.6s7.5 0 9.4-.6a3 3 0 002.1-2.1A31.9 31.9 0 0024 12a31.9 31.9 0 00-.5-5.8zM9.5 15.6V8.4l6.3 3.6-6.3 3.6z"/></svg>
+                        Watch Demo
+                    </a>
+                </div>
+            }
+        </div>
+    }
+
+    <section class="session-group supplements-card">
+        <div class="session-group-header">
+            <span class="dot" style="background:#ffcc00;"></span>
+            <span>Vitamins</span>
+            <span class="group-progress" id="supp-group-progress">@suppsDone/@suppsTotal</span>
+        </div>
+        @{
+            var suppsByGroup = Model.ViewModel.Supplements
+                .GroupBy(s => s.Supplement.TimeGroup)
+                .ToDictionary(g => g.Key, g => g.ToList());
+            var timeGroups = new[] { "am", "mid", "pm" };
+        }
+        <div class="supplements-list">
+            @foreach (var tg in timeGroups)
+            {
+                var groupSupps = suppsByGroup.ContainsKey(tg) ? suppsByGroup[tg] : new List<RubberJointsAI.Models.SupplementCheck>();
+                <div class="supplement-group">
+                    <div class="supplement-group-header">
+                        <h3 class="group-title">@GetTimeGroupLabel(tg)</h3>
+                        @if (!isFuture)
+                        {
+                            <button class="add-exercise-btn add-supplement-btn" data-time-group="@tg" title="Add @GetTimeGroupLabel(tg) supplement">+</button>
+                        }
+                    </div>
+                    @if (groupSupps.Count == 0)
+                    {
+                        <div class="empty-section-hint">
+                            @if (!isFuture)
+                            {
+                                <span>Tap + to add supplements</span>
+                            }
+                            else
+                            {
+                                <span>No supplements</span>
+                            }
+                        </div>
+                    }
+                    @foreach (var item in groupSupps)
+                    {
+                        <div class="supplement-item @(item.Checked ? "taken" : "") @(isFuture ? "read-only" : "")" data-supplement-id="@item.Supplement.Id" data-time-group="@tg">
+                            @if (!isFuture)
+                            {
+                                <div class="supplement-check"></div>
+                            }
+                            else
+                            {
+                                <div class="supplement-check-preview"></div>
+                            }
+                            <span class="supplement-name">@item.Supplement.Name</span>
+                            <span class="supplement-dose">@item.Supplement.Dose</span>
+                        </div>
+                    }
+                </div>
+            }
+        </div>
+    </section>
+
+    <!-- Exercise Picker Modal -->
+    <div id="exercise-picker-overlay" class="picker-overlay" style="display:none;">
+        <div class="picker-sheet">
+            <div class="picker-header">
+                <span class="picker-title">Add Exercise</span>
+                <button class="picker-close" id="picker-close">&times;</button>
+            </div>
+            <div class="picker-list" id="picker-list">
+                <div class="picker-loading">Loading...</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Supplement Picker Modal -->
+    <div id="supp-picker-overlay" class="picker-overlay" style="display:none;">
+        <div class="picker-sheet">
+            <div class="picker-header">
+                <span class="picker-title">Add Supplement</span>
+                <button class="picker-close" id="supp-picker-close">&times;</button>
+            </div>
+            <div class="picker-list" id="supp-picker-list">
+                <div class="picker-loading">Loading...</div>
+            </div>
+        </div>
+    </div>
+
+    <div style="height: 100px;"></div>
+</div>
+
+<script>
+// Page state
+const PAGE_DATE = '@Model.ViewModel.SelectedDate';
+const IS_FUTURE = @(isFuture ? "true" : "false");
+
+// Category totals for progress bars
+const categoryTotals = {
+    warmup_tool: { total: @warmupTotal, done: @warmupDone },
+    mobility: { total: @mobilityTotal, done: @mobilityDone },
+    recovery_tool: { total: @recoveryTotal, done: @recoveryDone },
+    supplements: { total: @suppsTotal, done: @suppsDone }
+};
+
+function updateProgressBars() {
+    ['warmup_tool', 'mobility', 'recovery_tool'].forEach(cat => {
+        const bar = document.getElementById('bar-' + cat);
+        const count = document.getElementById('count-' + cat);
+        if (bar && count) {
+            const pct = categoryTotals[cat].total > 0 ? (categoryTotals[cat].done * 100 / categoryTotals[cat].total) : 0;
+            bar.style.width = pct + '%';
+            count.textContent = categoryTotals[cat].done + '/' + categoryTotals[cat].total;
+        }
+    });
+
+    const suppBar = document.getElementById('bar-supplements');
+    const suppCount = document.getElementById('count-supplements');
+    if (suppBar && suppCount) {
+        const pct = categoryTotals.supplements.total > 0 ? (categoryTotals.supplements.done * 100 / categoryTotals.supplements.total) : 0;
+        suppBar.style.width = pct + '%';
+        suppCount.textContent = categoryTotals.supplements.done + '/' + categoryTotals.supplements.total;
+    }
+
+    document.querySelectorAll('.session-group').forEach(group => {
+        const done = group.querySelectorAll('.check-item.done').length;
+        const total = group.querySelectorAll('.check-item').length;
+        const progEl = group.querySelector('.group-progress');
+        if (progEl) progEl.textContent = done + '/' + total;
+    });
+
+    // Update supplement group progress
+    const suppProgEl = document.getElementById('supp-group-progress');
+    if (suppProgEl) {
+        suppProgEl.textContent = categoryTotals.supplements.done + '/' + categoryTotals.supplements.total;
+    }
+}
+
+// Session step checkboxes — only if not future
+if (!IS_FUTURE) {
+    document.querySelectorAll('.check-item[data-step-id]').forEach(item => {
+        item.addEventListener('click', async (e) => {
+            if (e.target.closest('.check-info')) return;
+
+            const stepId = item.dataset.stepId;
+            const stepIndex = item.dataset.stepIndex;
+            const category = item.dataset.category;
+            const wasDone = item.classList.contains('done');
+            const newState = !wasDone;
+
+            // Optimistic UI update
+            item.classList.toggle('done');
+            if (categoryTotals[category]) {
+                categoryTotals[category].done += wasDone ? -1 : 1;
+            }
+            updateProgressBars();
+
+            try {
+                const response = await fetch('/api/check', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        itemType: 'step',
+                        itemId: stepId,
+                        stepIndex: parseInt(stepIndex),
+                        checked: newState,
+                        date: PAGE_DATE
+                    })
+                });
+                if (!response.ok) {
+                    item.classList.toggle('done');
+                    if (categoryTotals[category]) {
+                        categoryTotals[category].done += wasDone ? 1 : -1;
+                    }
+                    updateProgressBars();
+                    console.error('API error:', response.status);
+                }
+            } catch (error) {
+                item.classList.toggle('done');
+                if (categoryTotals[category]) {
+                    categoryTotals[category].done += wasDone ? 1 : -1;
+                }
+                updateProgressBars();
+                console.error('Network error:', error);
+            }
+        });
+    });
+
+    // Supplement checkboxes — use timeGroup-based stepIndex for unique checks
+    const timeGroupIndex = { am: 0, mid: 1, pm: 2 };
+    document.querySelectorAll('.supplement-item[data-supplement-id]').forEach(item => {
+        item.addEventListener('click', async (e) => {
+            const supplementId = item.dataset.supplementId;
+            const tg = item.dataset.timeGroup || 'am';
+            const stepIdx = timeGroupIndex[tg] ?? 0;
+            const wasTaken = item.classList.contains('taken');
+            const newState = !wasTaken;
+
+            item.classList.toggle('taken');
+            categoryTotals.supplements.done += wasTaken ? -1 : 1;
+            updateProgressBars();
+
+            try {
+                const response = await fetch('/api/check', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        itemType: 'supplement',
+                        itemId: supplementId,
+                        stepIndex: stepIdx,
+                        checked: newState,
+                        date: PAGE_DATE
+                    })
+                });
+                if (!response.ok) {
+                    item.classList.toggle('taken');
+                    categoryTotals.supplements.done += wasTaken ? 1 : -1;
+                    updateProgressBars();
+                    console.error('API error:', response.status);
+                }
+            } catch (error) {
+                item.classList.toggle('taken');
+                categoryTotals.supplements.done += wasTaken ? 1 : -1;
+                updateProgressBars();
+                console.error('Network error:', error);
+            }
+        });
+    });
+}
+
+// Tap exercise name to expand detail (works for all dates)
+document.querySelectorAll('.check-info').forEach(info => {
+    info.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const item = info.closest('.check-item');
+        const stepId = item.dataset.stepId;
+        const detail = document.querySelector(`.detail[data-detail-for="${stepId}"]`);
+        if (detail) {
+            detail.classList.toggle('open');
+        }
+    });
+});
+
+// ── Exercise Picker ──
+const pickerOverlay = document.getElementById('exercise-picker-overlay');
+const pickerList = document.getElementById('picker-list');
+const pickerClose = document.getElementById('picker-close');
+let pickerCategory = '';
+
+function openPicker(category) {
+    pickerCategory = category;
+    pickerList.innerHTML = '<div class="picker-loading">Loading...</div>';
+    pickerOverlay.style.display = 'flex';
+    document.body.style.overflow = 'hidden';
+
+    // Get existing exercise IDs in this category
+    const existingIds = new Set();
+    document.querySelectorAll(`.check-item[data-category="${category}"]`).forEach(el => {
+        const exId = el.dataset.exerciseId;
+        if (exId) existingIds.add(exId);
+    });
+
+    fetch(`/api/exercises?category=${encodeURIComponent(category)}`)
+        .then(r => r.json())
+        .then(exercises => {
+            if (exercises.length === 0) {
+                pickerList.innerHTML = '<div class="picker-loading">No exercises available</div>';
+                return;
+            }
+            pickerList.innerHTML = '';
+            exercises.forEach(ex => {
+                const alreadyAdded = existingIds.has(ex.id);
+                const item = document.createElement('div');
+                item.className = 'picker-item' + (alreadyAdded ? ' picker-item-disabled' : '');
+                item.innerHTML = `
+                    <div class="picker-item-info">
+                        <span class="picker-item-name">${ex.name}</span>
+                        <span class="picker-item-targets">${ex.targets}</span>
+                    </div>
+                    <span class="picker-item-rx">${ex.defaultRx || ''}</span>
+                    ${alreadyAdded ? '<span class="picker-item-added">Added</span>' : ''}
+                `;
+                if (!alreadyAdded) {
+                    item.addEventListener('click', () => addExercise(ex));
+                }
+                pickerList.appendChild(item);
+            });
+        })
+        .catch(err => {
+            pickerList.innerHTML = '<div class="picker-loading">Error loading exercises</div>';
+            console.error(err);
+        });
+}
+
+function closePicker() {
+    pickerOverlay.style.display = 'none';
+    document.body.style.overflow = '';
+}
+
+pickerClose.addEventListener('click', closePicker);
+pickerOverlay.addEventListener('click', (e) => {
+    if (e.target === pickerOverlay) closePicker();
+});
+
+async function addExercise(exercise) {
+    closePicker();
+
+    try {
+        const response = await fetch('/api/plan/add', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                date: PAGE_DATE,
+                exerciseId: exercise.id,
+                category: pickerCategory
+            })
+        });
+
+        const result = await response.json();
+        if (result.success) {
+            // Reload page to show new exercise in correct position with all wiring
+            window.location.reload();
+        } else {
+            console.error('Failed to add exercise:', result.error);
+        }
+    } catch (error) {
+        console.error('Network error adding exercise:', error);
+    }
+}
+
+// Wire up exercise + buttons (exclude the supplement button)
+if (!IS_FUTURE) {
+    document.querySelectorAll('.add-exercise-btn[data-category], .add-exercise-btn-large[data-category]').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            openPicker(btn.dataset.category);
+        });
+    });
+}
+
+// ── Supplement Picker (per time group) ──
+const suppPickerOverlay = document.getElementById('supp-picker-overlay');
+const suppPickerList = document.getElementById('supp-picker-list');
+const suppPickerClose = document.getElementById('supp-picker-close');
+let suppPickerTimeGroup = '';
+
+function openSuppPicker(timeGroup) {
+    suppPickerTimeGroup = timeGroup;
+    const groupLabels = { am: 'Morning', mid: 'Midday', pm: 'Evening' };
+    document.querySelector('#supp-picker-overlay .picker-title').textContent = 'Add ' + (groupLabels[timeGroup] || '') + ' Supplement';
+    suppPickerList.innerHTML = '<div class="picker-loading">Loading...</div>';
+    suppPickerOverlay.style.display = 'flex';
+    document.body.style.overflow = 'hidden';
+
+    fetch(`/api/supplements/available?timeGroup=${encodeURIComponent(timeGroup)}`)
+        .then(r => r.json())
+        .then(supplements => {
+            if (supplements.length === 0) {
+                suppPickerList.innerHTML = '<div class="picker-loading">All supplements already added to this group</div>';
+                return;
+            }
+            suppPickerList.innerHTML = '';
+
+            supplements.forEach(s => {
+                const item = document.createElement('div');
+                item.className = 'picker-item';
+                item.innerHTML = `
+                    <div class="picker-item-info">
+                        <span class="picker-item-name">${s.name}</span>
+                        <span class="picker-item-targets">${s.dose}</span>
+                    </div>
+                    <span class="picker-item-rx">${s.time}</span>
+                `;
+                item.addEventListener('click', () => addSupplement(s));
+                suppPickerList.appendChild(item);
+            });
+        })
+        .catch(err => {
+            suppPickerList.innerHTML = '<div class="picker-loading">Error loading supplements</div>';
+            console.error(err);
+        });
+}
+
+function closeSuppPicker() {
+    suppPickerOverlay.style.display = 'none';
+    document.body.style.overflow = '';
+}
+
+suppPickerClose.addEventListener('click', closeSuppPicker);
+suppPickerOverlay.addEventListener('click', (e) => {
+    if (e.target === suppPickerOverlay) closeSuppPicker();
+});
+
+async function addSupplement(supplement) {
+    closeSuppPicker();
+    try {
+        const response = await fetch('/api/supplements/add', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                supplementId: supplement.id,
+                date: PAGE_DATE,
+                timeGroup: suppPickerTimeGroup
+            })
+        });
+        const result = await response.json();
+        if (result.success) {
+            window.location.reload();
+        } else {
+            console.error('Failed to add supplement:', result.error);
+        }
+    } catch (error) {
+        console.error('Network error adding supplement:', error);
+    }
+}
+
+// Wire up per-time-group supplement + buttons
+if (!IS_FUTURE) {
+    document.querySelectorAll('.add-supplement-btn[data-time-group]').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            openSuppPicker(btn.dataset.timeGroup);
+        });
+    });
+}
+
+// Swipe gesture support for day navigation
+let touchStartX = 0;
+let touchEndX = 0;
+document.addEventListener('touchstart', e => { touchStartX = e.changedTouches[0].screenX; }, { passive: true });
+document.addEventListener('touchend', e => {
+    touchEndX = e.changedTouches[0].screenX;
+    const diff = touchStartX - touchEndX;
+    if (Math.abs(diff) > 80) {
+        if (diff > 0) {
+            // Swipe left → next day
+            window.location.href = '/?date=@Model.ViewModel.NextDate';
+        } else {
+            // Swipe right → prev day
+            window.location.href = '/?date=@Model.ViewModel.PrevDate';
+        }
+    }
+}, { passive: true });
+</script>
+
+@functions {
+    private string GetCategoryColor(string category)
+    {
+        return category switch
+        {
+            "mobility" => "#34c759",
+            "strength" => "#af52de",
+            "warmup_tool" => "#ff9500",
+            "recovery_tool" => "#4a6cf7",
+            _ => "#4a6cf7"
+        };
+    }
+
+    private int GetSectionOrder(string category)
+    {
+        return category switch
+        {
+            "warmup_tool" => 0,
+            "mobility" => 1,
+            "strength" => 2,
+            "recovery_tool" => 3,
+            _ => 4
+        };
+    }
+
+    private string GetSectionLabel(string category)
+    {
+        return category switch
+        {
+            "warmup_tool" => "Warm-up",
+            "mobility" => "Mobility",
+            "strength" => "Strength",
+            "recovery_tool" => "Recovery",
+            _ => "Other"
+        };
+    }
+
+    private string GetYouTubeQuery(Exercise ex)
+    {
+        return ex.Id switch
+        {
+            "cars-routine" => "Controlled Articular Rotations mobility routine",
+            "open-book" => "open book thoracic spine rotation stretch",
+            "hip-flexor-pails-rails" => "hip flexor PAILs RAILs FRC stretch",
+            "90-90-pails-rails" => "90 90 hip PAILs RAILs FRC stretch",
+            "ankle-pails-rails" => "ankle dorsiflexion PAILs RAILs FRC",
+            "compex-warmup" => "Compex EMS muscle warmup program",
+            "compex-recovery" => "Compex EMS recovery program legs",
+            _ => ex.Name + " exercise demo"
+        };
+    }
+
+    private string GetTimeGroupLabel(string timeGroup)
+    {
+        return timeGroup switch
+        {
+            "am" => "Morning",
+            "mid" => "Midday",
+            "pm" => "Evening",
+            _ => "Unknown"
+        };
+    }
+}

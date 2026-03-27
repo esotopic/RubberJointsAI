@@ -1,0 +1,71 @@
+@page
+@model WeekModel
+
+@{
+    ViewData["Title"] = "Week";
+}
+
+<div class="page-content">
+    @if (!string.IsNullOrEmpty(Model.ErrorMessage))
+    {
+        <div class="error-banner">@Model.ErrorMessage</div>
+    }
+
+    <header class="page-header">
+        <div class="logo">Weekly Activity</div>
+        <div class="pill">Week @Model.Week of 4</div>
+    </header>
+
+    <div class="week-nav">
+        <a href="/Week?wo=@(Model.WeekOffset - 1)" class="week-nav-btn">&lsaquo;</a>
+        @if (Model.WeekOffset != 0)
+        {
+            <a href="/Week" class="week-nav-today-link">Current Week</a>
+        }
+        <a href="/Week?wo=@(Model.WeekOffset + 1)" class="week-nav-btn">&rsaquo;</a>
+    </div>
+
+    <div class="cal-week">
+        @foreach (var day in Model.Days)
+        {
+            <a href="/?date=@day.DateStr" class="cal-day @(day.IsToday ? "is-today" : "")" style="text-decoration:none;color:inherit;">
+                <div class="cal-day-hdr">
+                    <div class="cal-day-name" style="@(day.IsToday ? "color:#34c759;" : "")">
+                        @day.DayName@(day.IsToday ? " (Today)" : "")
+                    </div>
+                    <div class="cal-day-date">@day.DateLabel</div>
+                </div>
+                <div class="cal-day-type">@day.SessionLabel · ~@day.EstMinutes min</div>
+
+                @if (day.IsFuture)
+                {
+                    <div class="cal-empty">Upcoming</div>
+                }
+                else if (day.Categories.Any())
+                {
+                    <div class="cal-bars">
+                        @foreach (var cat in day.Categories)
+                        {
+                            <div class="cal-bar-row">
+                                <div class="cal-bar-lbl" style="color:@cat.Color;">@cat.Label</div>
+                                <div class="cal-bar-track">
+                                    <div class="cal-bar-fill @(cat.Percent == 100 ? "full" : "")"
+                                         style="width:@cat.Percent%;background:@cat.Color;color:@cat.Color;"></div>
+                                </div>
+                                <div class="cal-bar-ct">
+                                    <span style="color:var(--tx);">@cat.Done</span>/@cat.Total
+                                </div>
+                            </div>
+                        }
+                    </div>
+                }
+                else
+                {
+                    <div class="cal-empty">No data</div>
+                }
+            </a>
+        }
+    </div>
+
+    <div style="height: 100px;"></div>
+</div>

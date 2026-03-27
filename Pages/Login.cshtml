@@ -1,0 +1,137 @@
+@page
+@model LoginModel
+
+@{
+    ViewData["Title"] = "Login";
+    Layout = null;
+}
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="theme-color" content="#f5f5f7">
+    <title>RubberJoints — Login</title>
+    <link rel="stylesheet" href="~/css/site.css">
+    <style>
+        .auth-container {
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            background: var(--bg);
+        }
+        .auth-card {
+            background: var(--s1);
+            border: 1px solid var(--brd);
+            border-radius: 16px;
+            padding: 40px 32px;
+            width: 100%;
+            max-width: 380px;
+            box-shadow: 0 2px 12px rgba(0,0,0,0.06);
+        }
+        .auth-logo {
+            text-align: center;
+            font-size: 1.4rem;
+            letter-spacing: 3px;
+            color: var(--acc);
+            margin-bottom: 8px;
+        }
+        .auth-subtitle {
+            text-align: center;
+            color: var(--tx2);
+            font-size: 0.9rem;
+            margin-bottom: 32px;
+        }
+        .auth-field {
+            margin-bottom: 20px;
+        }
+        .auth-field label {
+            display: block;
+            color: var(--tx2);
+            font-size: 0.85rem;
+            margin-bottom: 6px;
+        }
+        .auth-field input {
+            width: 100%;
+            padding: 12px 14px;
+            background: var(--s2);
+            border: 1px solid var(--brd);
+            border-radius: 10px;
+            color: var(--tx);
+            font-size: 1rem;
+            outline: none;
+            box-sizing: border-box;
+        }
+        .auth-field input:focus {
+            border-color: var(--acc);
+        }
+        .auth-btn {
+            width: 100%;
+            padding: 14px;
+            background: var(--acc);
+            color: #fff;
+            font-size: 1rem;
+            font-weight: 600;
+            border: none;
+            border-radius: 10px;
+            cursor: pointer;
+            margin-top: 8px;
+        }
+        .auth-btn:hover {
+            opacity: 0.9;
+        }
+        .auth-error {
+            background: rgba(255,59,48,0.1);
+            color: var(--red);
+            padding: 10px 14px;
+            border-radius: 8px;
+            font-size: 0.9rem;
+            margin-bottom: 20px;
+        }
+        .auth-link {
+            text-align: center;
+            margin-top: 20px;
+            color: var(--tx2);
+            font-size: 0.9rem;
+        }
+        .auth-link a {
+            color: var(--acc);
+            text-decoration: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="auth-container">
+        <div class="auth-card">
+            <div class="auth-logo">RUBBERJOINTS</div>
+            <div class="auth-subtitle">Sign in to your account</div>
+
+            @if (!string.IsNullOrEmpty(Model.ErrorMessage))
+            {
+                <div class="auth-error">@Model.ErrorMessage</div>
+            }
+
+            <form method="post" asp-route-returnUrl="@Model.ReturnUrl">
+                <div class="auth-field">
+                    <label for="Username">Username</label>
+                    <input type="text" id="Username" name="Username" value="@Model.Username"
+                           autocomplete="username" autofocus required>
+                </div>
+                <div class="auth-field">
+                    <label for="Password">Password</label>
+                    <input type="password" id="Password" name="Password"
+                           autocomplete="current-password" required>
+                </div>
+                <button type="submit" class="auth-btn">Sign In</button>
+            </form>
+
+            <div class="auth-link">
+                Don't have an account? <a href="/Register">Create one</a>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

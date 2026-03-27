@@ -1,0 +1,158 @@
+@page
+@model LibraryModel
+
+@{
+    ViewData["Title"] = "Library";
+}
+
+<div class="page-content">
+    <header class="page-header">
+        <h1>Exercise Library</h1>
+    </header>
+
+    @if (!string.IsNullOrEmpty(Model.ErrorMessage))
+    {
+        <div class="error-banner">@Model.ErrorMessage</div>
+    }
+
+    <div class="search-container">
+        <input type="text" id="searchInput" class="search-input" placeholder="Search exercises...">
+    </div>
+
+    @if (Model.Exercises.Any())
+    {
+        @foreach (var category in GetCategoriesInOrder())
+        {
+            var exercisesInCategory = Model.Exercises.Where(e => e.Category == category).ToList();
+            if (exercisesInCategory.Any())
+            {
+                <section class="library-section" data-category="@category">
+                    <h2 class="section-title">@GetCategoryLabel(category)</h2>
+                    <div class="exercises-grid">
+                        @foreach (var exercise in exercisesInCategory.OrderBy(e => e.Name))
+                        {
+                            <div class="exercise-card" data-exercise-id="@exercise.Id" data-name="@exercise.Name.ToLower()" data-targets="@exercise.Targets.ToLower()">
+                                <div class="card-header">
+                                    <span class="category-dot" style="background-color: @GetCategoryColor(category);"></span>
+                                    <h3 class="exercise-name" role="button" tabindex="0">@exercise.Name</h3>
+                                </div>
+                                <div class="exercise-targets">
+                                    @foreach (var target in exercise.Targets.Split(',', System.StringSplitOptions.RemoveEmptyEntries))
+                                    {
+                                        <span class="target-tag">@target.Trim()</span>
+                                    }
+                                </div>
+                                <div class="exercise-detail" style="display: none;">
+                                    @if (!string.IsNullOrEmpty(exercise.Description))
+                                    {
+                                        <p class="description"><strong>Description:</strong> @exercise.Description</p>
+                                    }
+                                    @if (!string.IsNullOrEmpty(exercise.Explanation))
+                                    {
+                                        <p class="explanation"><strong>Explanation:</strong> @exercise.Explanation</p>
+                                    }
+                                    @if (!string.IsNullOrEmpty(exercise.Cues))
+                                    {
+                                        <div class="cues">
+                                            <strong>Cues:</strong>
+                                            <ul>
+                                                @foreach (var cue in exercise.Cues.Split('|', System.StringSplitOptions.RemoveEmptyEntries))
+                                                {
+                                                    <li>@cue.Trim()</li>
+                                                }
+                                            </ul>
+                                        </div>
+                                    }
+                                    @if (!string.IsNullOrEmpty(exercise.Warning))
+                                    {
+                                        <p class="warning">⚠️ @exercise.Warning</p>
+                                    }
+                                    @if (!string.IsNullOrEmpty(exercise.Phases))
+                                    {
+                                        <p class="phases"><strong>Phases:</strong>
+                                            @{
+                                                var phases = exercise.Phases.Split(',', System.StringSplitOptions.RemoveEmptyEntries);
+                                                <text>@string.Join(", ", phases.Select(p => $"Phase {p.Trim()}"))</text>
+                                            }
+                                        </p>
+                                    }
+                                </div>
+                            </div>
+                        }
+                    </div>
+                </section>
+            }
+        }
+    }
+    else
+    {
+        <div class="empty-state">
+            <p>No exercises found.</p>
+        </div>
+    }
+
+    <div style="height: 100px;"></div>
+</div>
+
+<script>
+const searchInput = document.getElementById('searchInput');
+const exerciseCards = document.querySelectorAll('.exercise-card');
+
+searchInput.addEventListener('input', (e) => {
+    const query = e.target.value.toLowerCase();
+
+    exerciseCards.forEach(card => {
+        const name = card.dataset.name;
+        const targets = card.dataset.targets;
+
+        const matches = name.includes(query) || targets.includes(query);
+        card.style.display = matches ? 'block' : 'none';
+    });
+});
+
+document.querySelectorAll('.exercise-name').forEach(name => {
+    name.addEventListener('click', (e) => {
+        const card = e.target.closest('.exercise-card');
+        const detail = card.querySelector('.exercise-detail');
+        detail.style.display = detail.style.display === 'none' ? 'block' : 'none';
+    });
+
+    name.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            name.click();
+        }
+    });
+});
+</script>
+
+@functions {
+    private List<string> GetCategoriesInOrder()
+    {
+        return new List<string> { "warmup_tool", "mobility", "strength", "recovery_tool" };
+    }
+
+    private string GetCategoryLabel(string category)
+    {
+        return category switch
+        {
+            "warmup_tool" => "Warm-Up Tools",
+            "mobility" => "Mobility",
+            "strength" => "Strength",
+            "recovery_tool" => "Recovery Tools",
+            _ => "Other"
+        };
+    }
+
+    private string GetCategoryColor(string category)
+    {
+        return category switch
+        {
+            "mobility" => "#45c4a0",
+            "strength" => "#9b59b6",
+            "warmup_tool" => "#ff6b35",
+            "recovery_tool" => "#4a90e2",
+            _ => "#7b9aff"
+        };
+    }
+}
