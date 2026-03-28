@@ -2605,6 +2605,21 @@ a.cal-day:active {
   font-weight: 600;
 }
 
+/* Joke card inside scrollable area — not fixed */
+.ai-joke-in-scroll {
+  flex-shrink: 1;
+  border-radius: 12px;
+  border: 1px solid #f0e8d8;
+}
+
+/* Inline chips inside scrollable area */
+.ai-suggestions-inline {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 4px 0;
+}
+
 /* Slim joke — one-line bar */
 .ai-joke-slim {
   background: #fffbf0;

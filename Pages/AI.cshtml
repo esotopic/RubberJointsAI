@@ -58,15 +58,15 @@
             🔥 START TRAINING 💪
         </a>
 
-        <!-- Joke card — fixed, rotates on every message and page load -->
-        <div class="ai-joke-card" id="jokeCard">
-            <div class="ai-joke-icon">😂</div>
-            <div class="ai-joke-text" id="jokeText"></div>
-            <div class="ai-joke-tagline">— Your joints, probably</div>
-        </div>
-
-        <!-- Messages area (scrollable) -->
+        <!-- Messages area (scrollable) — joke, info, messages, and chips all scroll -->
         <div class="ai-messages" id="aiMessages">
+
+            <!-- Joke card — scrolls with messages -->
+            <div class="ai-joke-card ai-joke-in-scroll" id="jokeCard">
+                <div class="ai-joke-icon">😂</div>
+                <div class="ai-joke-text" id="jokeText"></div>
+                <div class="ai-joke-tagline">— Your joints, probably</div>
+            </div>
 
             <!-- Today's Quick Glance — compact 3-line summary -->
             <div class="ai-info-card ai-info-compact">
@@ -89,19 +89,19 @@
                     <p>Ask me anything about your program, exercises, or supplements!</p>
                 </div>
             </div>
-        </div>
 
-        <!-- 3 quick chips — one line -->
-        <div class="ai-suggestions" id="aiSuggestions">
-            <button class="ai-chip" data-prompt="Give me a status update on where I am in my program — what week, what I've completed today, and how my overall progress looks.">
-                My status
-            </button>
-            <button class="ai-chip" data-prompt="What should I focus on in today's session? Any tips for getting the most out of my exercises?">
-                Today's focus
-            </button>
-            <button class="ai-chip" data-prompt="How is my progress this week compared to what's expected? Am I on track?">
-                Weekly progress
-            </button>
+            <!-- Quick chips — inside scroll area -->
+            <div class="ai-suggestions-inline" id="aiSuggestions">
+                <button class="ai-chip" data-prompt="Give me a status update on where I am in my program — what week, what I've completed today, and how my overall progress looks.">
+                    My status
+                </button>
+                <button class="ai-chip" data-prompt="What should I focus on in today's session? Any tips for getting the most out of my exercises?">
+                    Today's focus
+                </button>
+                <button class="ai-chip" data-prompt="How is my progress this week compared to what's expected? Am I on track?">
+                    Weekly progress
+                </button>
+            </div>
         </div>
 
         <!-- Input + disclaimer — fixed bottom -->
