@@ -595,6 +595,9 @@ app.MapPost("/api/ai/chat", async (HttpContext context, RubberJointsAIRepository
             selectionData = sp.GetProperty("data");
         }
 
+        // Check for add_mode (used during onboarding to add custom items via AI chat)
+        bool addMode = root.TryGetProperty("add_mode", out var am) && am.GetBoolean();
+
         // Get user preferences (onboarding state)
         var prefs = await repository.GetUserPreferencesAsync(userId);
         bool isOnboarding = prefs == null || prefs.OnboardingStep < 7;
@@ -604,9 +607,9 @@ app.MapPost("/api/ai/chat", async (HttpContext context, RubberJointsAIRepository
             return Results.Json(new { success = false, error = "AI not configured" }, statusCode: 500);
 
         // ═══════════════════════════════════════════════════════════
-        //  ONBOARDING MODE
+        //  ONBOARDING MODE (skip if add_mode — goes to regular chat with tools)
         // ═══════════════════════════════════════════════════════════
-        if (isOnboarding)
+        if (isOnboarding && !addMode)
         {
             if (prefs == null)
                 prefs = new RubberJointsAI.Models.UserPreferences { UserId = userId, OnboardingStep = 0 };
