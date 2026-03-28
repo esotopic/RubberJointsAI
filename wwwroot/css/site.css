@@ -2476,16 +2476,143 @@ a.cal-day:active {
   transform: scale(1.05);
 }
 
-.ai-disclaimer {
+/* --- Prominent Disclaimer (must be clearly readable) --- */
+.ai-disclaimer-prominent {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin-top: 8px;
+  padding: 10px 14px;
+  background: #fff3cd;
+  border: 2px solid #ffc107;
+  border-radius: 10px;
+  font-size: 13px;
+  line-height: 1.45;
+  color: #664d03;
+}
+.ai-disclaimer-prominent svg {
+  flex-shrink: 0;
+  margin-top: 1px;
+  color: #e65100;
+}
+.ai-disclaimer-prominent strong {
+  color: #b71c1c;
+}
+
+/* --- Joke of the Day Card --- */
+.ai-joke-card {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  border-radius: 16px;
+  padding: 18px 20px 14px;
+  margin: 4px 0 10px;
+  color: white;
   text-align: center;
-  font-size: 10px;
+  animation: aiFadeIn 0.5s ease;
+}
+.ai-joke-icon {
+  font-size: 28px;
+  margin-bottom: 6px;
+}
+.ai-joke-text {
+  font-size: 15px;
+  font-style: italic;
+  line-height: 1.5;
+  font-weight: 500;
+  margin-bottom: 6px;
+}
+.ai-joke-tagline {
+  font-size: 12px;
+  opacity: 0.75;
+  font-weight: 600;
+}
+
+/* --- Today's Info Card --- */
+.ai-info-card {
+  background: var(--s1);
+  border: 1px solid var(--brd);
+  border-radius: 14px;
+  padding: 14px 16px;
+  margin-bottom: 10px;
+  animation: aiFadeIn 0.6s ease;
+}
+.ai-info-header {
+  margin-bottom: 10px;
+}
+.ai-info-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--tx);
+}
+.ai-info-section {
+  margin-bottom: 10px;
+}
+.ai-info-section-title {
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
   color: var(--tx3);
-  margin-top: 6px;
-  line-height: 1.4;
-  padding: 4px 8px;
-  background: rgba(255, 149, 0, 0.06);
-  border-radius: 8px;
-  border: 1px solid rgba(255, 149, 0, 0.12);
+  margin-bottom: 6px;
+}
+
+/* Exercise preview rows */
+.ai-exercise-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 0;
+  font-size: 14px;
+  border-bottom: 1px solid var(--s2);
+}
+.ai-exercise-row:last-of-type {
+  border-bottom: none;
+}
+.ai-exercise-row.done {
+  opacity: 0.5;
+  text-decoration: line-through;
+}
+.ai-exercise-check {
+  font-size: 14px;
+  flex-shrink: 0;
+}
+.ai-exercise-name {
+  flex: 1;
+  font-weight: 500;
+  color: var(--tx);
+}
+.ai-exercise-rx {
+  font-size: 12px;
+  color: var(--tx3);
+  white-space: nowrap;
+}
+.ai-exercise-more {
+  font-size: 12px;
+  color: var(--acc);
+  margin-top: 4px;
+  font-weight: 500;
+}
+
+/* Supplement rows */
+.ai-supplement-row {
+  font-size: 13px;
+  padding: 3px 0;
+  color: var(--tx2);
+}
+
+/* Info footer nuggets */
+.ai-info-footer {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--s2);
+}
+.ai-info-nugget {
+  font-size: 13px;
+  color: var(--tx2);
+  padding: 2px 0;
+  line-height: 1.5;
+}
+.ai-info-nugget strong {
+  color: var(--tx);
 }
 
 /* --- Welcome text reveal --- */

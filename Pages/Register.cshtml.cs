@@ -83,7 +83,21 @@ namespace RubberJointsAI.Pages
                         ExpiresUtc = DateTimeOffset.UtcNow.AddDays(30)
                     });
 
-                return RedirectToPage("/Index");
+                // Auto-enroll in the first available program starting today
+                try
+                {
+                    var programs = await _repository.GetProgramsAsync();
+                    if (programs.Count > 0)
+                    {
+                        await _repository.EnrollUserAsync(
+                            user.Username,
+                            programs[0].Id,
+                            DateTime.UtcNow.ToString("yyyy-MM-dd"));
+                    }
+                }
+                catch { /* enrollment can be done later */ }
+
+                return LocalRedirect("/AI");
             }
             catch (Exception)
             {

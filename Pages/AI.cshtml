@@ -87,7 +87,67 @@
 
         <!-- Messages area -->
         <div class="ai-messages" id="aiMessages">
-            <!-- Static welcome message (no AI call) -->
+
+            <!-- Joke of the Day card -->
+            <div class="ai-joke-card">
+                <div class="ai-joke-icon">😂</div>
+                <div class="ai-joke-text">"@Model.JokeOfTheDay"</div>
+                <div class="ai-joke-tagline">— Your joints, probably</div>
+            </div>
+
+            <!-- Today's Quick Glance (server-rendered info) -->
+            <div class="ai-info-card">
+                <div class="ai-info-header">
+                    <span class="ai-info-title">👋 Hey @User.Identity?.Name! Here's your day at a glance</span>
+                </div>
+
+                @if (Model.TodaysExercises.Any())
+                {
+                    <div class="ai-info-section">
+                        <div class="ai-info-section-title">Today's Exercises</div>
+                        @foreach (var ex in Model.TodaysExercises.Take(6))
+                        {
+                            <div class="ai-exercise-row @(ex.Done ? "done" : "")">
+                                <span class="ai-exercise-check">@(ex.Done ? "✅" : "⬜")</span>
+                                <span class="ai-exercise-name">@ex.Name</span>
+                                <span class="ai-exercise-rx">@ex.Rx</span>
+                            </div>
+                        }
+                        @if (Model.TodaysExercises.Count > 6)
+                        {
+                            <div class="ai-exercise-more">+ @(Model.TodaysExercises.Count - 6) more — check your Today tab</div>
+                        }
+                    </div>
+                }
+
+                @if (Model.UpcomingSupplements.Any())
+                {
+                    <div class="ai-info-section">
+                        <div class="ai-info-section-title">💊 Supplements Still Due</div>
+                        @foreach (var sup in Model.UpcomingSupplements)
+                        {
+                            <div class="ai-supplement-row">@sup</div>
+                        }
+                    </div>
+                }
+
+                <div class="ai-info-footer">
+                    @if (Model.NextMilestone != null)
+                    {
+                        <div class="ai-info-nugget">🎯 Next milestone: <strong>@Model.NextMilestone</strong></div>
+                    }
+                    @if (Model.DaysRemaining > 0)
+                    {
+                        <div class="ai-info-nugget">📅 @Model.DaysRemaining days remaining in your program</div>
+                    }
+                    @if (Model.CompletedSessions > 0)
+                    {
+                        <div class="ai-info-nugget">🔥 @Model.CompletedSessions sessions completed so far — keep it up!</div>
+                    }
+                </div>
+            </div>
+
+            <!-- AI intro -->
             <div class="ai-message ai-message-assistant">
                 <div class="ai-avatar">
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -95,8 +155,7 @@
                     </svg>
                 </div>
                 <div class="ai-bubble ai-bubble-assistant">
-                    <p><strong>Hey @User.Identity?.Name!</strong> I'm your AI mobility coach.</p>
-                    <p>Ask me anything about your plan or tap a quick option below.</p>
+                    <p>Got questions? Tap a quick option below or type anything about your program.</p>
                 </div>
             </div>
         </div>
@@ -134,11 +193,14 @@
                     </svg>
                 </button>
             </div>
-            <div class="ai-disclaimer">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;margin-right:4px;opacity:0.7;">
-                    <circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line>
+            <!-- PROMINENT DISCLAIMER -->
+            <div class="ai-disclaimer-prominent">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                    <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"></path>
+                    <line x1="12" y1="9" x2="12" y2="13"></line>
+                    <line x1="12" y1="17" x2="12.01" y2="17"></line>
                 </svg>
-                This is an AI assistant, not a fitness trainer, doctor, or nutritionist. All suggestions are AI-generated and should not replace professional medical, fitness, or dietary advice. Always consult a qualified professional before making health decisions.
+                <span><strong>Not medical advice.</strong> This is an AI assistant — not a doctor, trainer, or nutritionist. Always consult a professional before making health decisions.</span>
             </div>
         </div>
     </div>
@@ -221,7 +283,6 @@
             const bubble = aiMsg.querySelector('.ai-bubble-assistant');
 
             if (data.success && data.response) {
-                // Format the AI response (convert markdown-like formatting)
                 bubble.innerHTML = formatResponse(data.response);
             } else {
                 bubble.innerHTML = `<p style="color:var(--red);">Sorry, I couldn't process that. ${data.error || 'Please try again.'}</p>`;
@@ -237,9 +298,7 @@
 
     // Format AI response text into HTML
     function formatResponse(text) {
-        // Convert **bold** to <strong>
         text = text.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
-        // Convert line breaks to paragraphs
         const paragraphs = text.split('\n\n').filter(p => p.trim());
         if (paragraphs.length > 1) {
             return paragraphs.map(p => `<p>${p.replace(/\n/g, '<br>')}</p>`).join('');
@@ -267,8 +326,8 @@
     // === New Chat ===
     document.getElementById('newChatBtn').addEventListener('click', function() {
         const messagesDiv = document.getElementById('aiMessages');
-        // Remove all messages except the first welcome message
-        while (messagesDiv.children.length > 1) {
+        // Keep the joke card, info card, and AI intro (first 3 children)
+        while (messagesDiv.children.length > 3) {
             messagesDiv.removeChild(messagesDiv.lastChild);
         }
         closeSidebar();
