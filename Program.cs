@@ -524,7 +524,7 @@ app.MapPost("/api/ai/chat", async (HttpContext context, RubberJointsAIRepository
                             await repository.GenerateCustomPlanAsync(userId, prefs);
                             var qsPrompt = prefs.HasGym
                                 ? $"You are the AI Coach for a hilariously serious joint & mobility workout program — because your joints called and they want better treatment. The user '{userId}' just did a quick setup! Their plan has been auto-generated: {selectedDayCount} days/week ({daysSummary}), gym access — we loaded up all the gym goodies including warm-up tools, mobility work, strength exercises, and recovery equipment. Celebrate! Keep it to 2-3 sentences. Make a funny joint/mobility joke. Tell them to tap START TRAINING to begin. Mention they can customize exercises and supplements anytime from the Workout tab or by chatting with you."
-                                : $"You are the AI Coach for a hilariously serious joint & mobility workout program — because your joints called and they want better treatment. The user '{userId}' just did a quick setup! Their HOME-ONLY plan has been auto-generated: {selectedDayCount} days/week, no gym needed! The plan includes mobility work (CARs, hip switches, deep squats, stretches), bodyweight strength (cossack squats, jefferson curls), and home recovery tools (foam roller, lacrosse ball, yoga cool-down, contrast showers, epsom salt baths). Everything can be done in their living room. Celebrate! Keep it to 2-3 sentences. Make a funny joint/mobility joke. Tell them to tap START TRAINING to begin. Mention they can customize exercises and supplements anytime from the Workout tab or by chatting with you.";
+                                : $"You are the AI Coach for a hilariously serious joint & mobility workout program — because your joints called and they want better treatment. The user '{userId}' just did a quick setup! Their HOME-ONLY plan has been auto-generated: {selectedDayCount} days/week, no gym needed! The plan is pure joint mobility — CARs routines, hip switches, deep squats, couch stretches, ankle work, spinal rotations — plus home recovery tools like foam roller, lacrosse ball, yoga cool-down, contrast showers, and epsom salt baths. Everything can be done in their living room. Celebrate! Keep it to 2-3 sentences. Make a funny joint/mobility joke. Tell them to tap START TRAINING to begin. Mention they can customize exercises and supplements anytime from the Workout tab or by chatting with you.";
                             var qsText = await CallClaudeAsync(httpFactory, apiKey, qsPrompt, "Quick start!", history);
                             return Results.Json(new { success = true, response = qsText, onboarding_step = 7, onboarding_complete = true });
                         }
@@ -659,9 +659,9 @@ RULES:
                     break;
                 case 4: // recovery tools
                     uiComponent = new { type = "exercise_picker", id = "recovery", category = "Recovery",
-                        exercises = allExercises.Where(e => e.Category == "recovery_tool" || e.Category == "strength").Select(e => new {
+                        exercises = allExercises.Where(e => e.Category == "recovery_tool").Select(e => new {
                             id = e.Id, name = e.Name, description = e.Targets, rx = e.DefaultRx ?? "",
-                            category_label = e.Category == "strength" ? "💪 Strength" : "🧊 Recovery"
+                            category_label = "🧊 Recovery"
                         })
                     };
                     break;
@@ -801,7 +801,7 @@ RULES:
         var tools = new object[]
         {
             new { name = "get_all_exercises", description = "Get all available exercises in the system, optionally filtered by category",
-                input_schema = new { type = "object", properties = new { category = new { type = "string", description = "Optional: warmup_tool, mobility, strength, recovery_tool" } } } },
+                input_schema = new { type = "object", properties = new { category = new { type = "string", description = "Optional: warmup_tool, mobility, recovery_tool" } } } },
             new { name = "add_exercise_to_plan", description = "Add an exercise to the user's plan from today going forward",
                 input_schema = new { type = "object", properties = new { exercise_id = new { type = "string" }, category = new { type = "string" } },
                     required = new[] { "exercise_id", "category" } } },

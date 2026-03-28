@@ -387,11 +387,22 @@ namespace RubberJointsAI.Data
             using var connection = new SqlConnection(_connectionString);
             await connection.OpenAsync();
             // Rename program from "RubberJointsAI" to "4-Week Joint & Mobility Program"
-            using var cmd = connection.CreateCommand();
-            cmd.CommandText = @"UPDATE Programs SET Name = '4-Week Joint & Mobility Program',
-                Description = 'A hilariously serious program to get your joints moving like they should.'
-                WHERE Name = 'RubberJointsAI'";
-            await cmd.ExecuteNonQueryAsync();
+            using (var cmd = connection.CreateCommand())
+            {
+                cmd.CommandText = @"UPDATE Programs SET Name = '4-Week Joint & Mobility Program',
+                    Description = 'A hilariously serious program to get your joints moving like they should.'
+                    WHERE Name = 'RubberJointsAI'";
+                await cmd.ExecuteNonQueryAsync();
+            }
+
+            // Remove strength exercises — this is a joint/mobility program, not strength training
+            using (var cmd2 = connection.CreateCommand())
+            {
+                cmd2.CommandText = @"DELETE FROM Exercises WHERE Category = 'strength';
+                    DELETE FROM ProgramExercises WHERE Category = 'strength';
+                    DELETE FROM UserDailyPlan WHERE Category = 'strength';";
+                await cmd2.ExecuteNonQueryAsync();
+            }
         }
 
         /// <summary>
@@ -427,10 +438,6 @@ namespace RubberJointsAI.Data
                 ("hip-flexor-pails-rails", "Hip Flexor PAILs/RAILs", "mobility", "Hips", "Proprioceptive stretching for hip flexors", "Hold position | Contract | Relax | 8-10 reps", "Increases hip flexor mobility and stability", "Requires space and understanding of PAILs/RAILs", "2", "8 reps"),
                 ("90-90-pails-rails", "90/90 PAILs/RAILs", "mobility", "Hips", "Proprioceptive stretching in 90/90 position", "Hold | Contract | Relax | 8-10 reps each side", "Improves hip external rotation", "Advanced technique; build foundation first", "2", "8 reps each"),
                 ("ankle-pails-rails", "Ankle PAILs/RAILs", "mobility", "Ankles", "Proprioceptive stretching for ankle mobility", "Hold position | Contract | Relax | 8-10 reps", "Improves ankle dorsiflexion and control", "Requires proprioceptive understanding", "2", "8 reps"),
-                ("goblet-squat", "Goblet Squat (3s Pause)", "strength", "Hips,Knees,Core", "Squat while holding weight with 3-second pause", "Hold weight at chest | Deep squat | Pause at bottom | 8 reps", "Builds squat strength and depth", "Start with light weight", "2", "8 reps"),
-                ("turkish-getup", "Turkish Get-Up", "strength", "Full Body", "Get up from lying to standing while holding weight", "Controlled movement | Full attention | 5 reps each side", "Full body strength and stability", "Complex movement; practice without weight first", "2", "5 reps each"),
-                ("cossack-squat", "Cossack Squat", "strength", "Hips,Knees,Ankles", "Shift side to side in wide squat stance", "Wide stance | Shift weight | Touch floor | 8 reps each", "Builds lateral hip and knee strength", "Requires significant mobility", "2", "8 reps each"),
-                ("jefferson-curl", "Jefferson Curl", "strength", "Spine,Hamstrings", "Curl spine vertebra by vertebra", "Standing | Slow curl | Articulate spine | 8-10 reps", "Improves spinal flexion and hamstring flexibility", "Go slow to avoid injury", "2", "8 reps"),
                 ("hydro-massager", "Hydro Massager", "recovery_tool", "Full Body", "Use hydro massager for muscle recovery", "Various speeds | Target muscles | 5-10 min", "Increases circulation and aids recovery", "Avoid over-sensitive areas", "1,2", "5 min"),
                 ("steam-sauna", "Steam Sauna", "recovery_tool", "Full Body", "Relax in steam sauna for recovery", "10-20 min | Stay hydrated | Moderate temperature", "Promotes relaxation and circulation", "Avoid if pregnant or have heart conditions", "1,2", "15 min"),
                 ("dry-sauna", "Dry Sauna", "recovery_tool", "Full Body", "Relax in dry sauna for muscle recovery", "10-20 min | Stay hydrated | Moderate temperature", "Reduces muscle soreness and promotes recovery", "Stay well hydrated", "1,2", "15 min"),
@@ -580,10 +587,8 @@ namespace RubberJointsAI.Data
                 ("gym", "deep-squat-hold", "60 sec", "90 sec", null, "mobility", 4),
                 ("gym", "dead-hang", "30 sec x3", "60 sec x3", null, "mobility", 5),
                 ("gym", "worlds-greatest-stretch", "8 reps each", "10 reps each", null, "mobility", 6),
-                ("gym", "goblet-squat", null, "8 reps x3", 2, "strength", 7),
-                ("gym", "turkish-getup", null, "5 reps each x2", 2, "strength", 8),
-                ("gym", "hydro-massager", "5 min", "5 min", null, "recovery", 9),
-                ("gym", "compex-recovery", "15 min", "15 min", null, "recovery", 10),
+                ("gym", "hydro-massager", "5 min", "5 min", null, "recovery", 7),
+                ("gym", "compex-recovery", "15 min", "15 min", null, "recovery", 8),
 
                 // HOME sessions
                 ("home", "cars-routine", "5 min", "5 min", null, "mobility", 1),
@@ -595,8 +600,6 @@ namespace RubberJointsAI.Data
                 ("home", "90-90-pails-rails", null, "8 reps each", 2, "mobility", 7),
                 ("home", "hip-flexor-pails-rails", null, "8 reps", 2, "mobility", 8),
                 ("home", "ankle-pails-rails", null, "8 reps", 2, "mobility", 9),
-                ("home", "cossack-squat", null, "8 reps each", 2, "strength", 10),
-                ("home", "jefferson-curl", null, "8 reps", 2, "strength", 11),
 
                 // RECOVERY sessions
                 ("recovery", "steam-sauna", "15 min", "15 min", null, "recovery", 1),
@@ -2148,7 +2151,6 @@ namespace RubberJointsAI.Data
         {
             "hot-tub", "vibration-plate",                          // warmup tools (gym equipment)
             "dead-hang",                                            // needs pull-up bar
-            "goblet-squat", "turkish-getup",                       // need weights
             "hydro-massager", "steam-sauna", "dry-sauna",          // gym recovery
             "compex-warmup", "compex-recovery", "compression-boots" // specialized recovery equipment
         };
@@ -2217,19 +2219,20 @@ namespace RubberJointsAI.Data
 
                 if (dayType == "gym")
                 {
-                    // Gym: all selected exercises (warmup + mobility + strength + recovery tools)
-                    result.Add((id, ex.Category, ex.DefaultRx));
+                    // Gym: warmup + mobility + recovery tools (no strength — this is a joint/mobility program)
+                    if (ex.Category == "warmup_tool" || ex.Category == "mobility" || ex.Category == "recovery_tool")
+                        result.Add((id, ex.Category, ex.DefaultRx));
                 }
                 else if (dayType == "home")
                 {
-                    // Home: mobility + strength only, but only home-appropriate ones
-                    if ((ex.Category == "mobility" || ex.Category == "strength") && IsHomeAppropriate(id))
+                    // Home: mobility only, home-appropriate exercises
+                    if (ex.Category == "mobility" && IsHomeAppropriate(id))
                         result.Add((id, ex.Category, ex.DefaultRx));
                 }
             }
 
-            // Sort: warmup_tool → mobility → strength → recovery_tool
-            var catOrder = new Dictionary<string, int> { ["warmup_tool"] = 0, ["mobility"] = 1, ["strength"] = 2, ["recovery_tool"] = 3 };
+            // Sort: warmup_tool → mobility → recovery_tool
+            var catOrder = new Dictionary<string, int> { ["warmup_tool"] = 0, ["mobility"] = 1, ["recovery_tool"] = 2 };
             result.Sort((a, b) => catOrder.GetValueOrDefault(a.category, 9).CompareTo(catOrder.GetValueOrDefault(b.category, 9)));
 
             return result;
