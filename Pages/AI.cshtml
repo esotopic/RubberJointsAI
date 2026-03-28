@@ -267,7 +267,6 @@ async function sendMessage(text, selection) {
 // ═══ Render UI Components ═══
 function renderUIComponent(container, comp, step) {
     if (comp.type === 'welcome_start') {
-        // Welcome step: simple "Let's Go" button
         const div = document.createElement('div');
         div.style.cssText = 'text-align:center;padding:8px 0;';
         const btn = document.createElement('button');
@@ -275,12 +274,111 @@ function renderUIComponent(container, comp, step) {
         btn.style.cssText = 'background:linear-gradient(135deg,#6366f1,#8b5cf6);color:#fff;border:none;border-radius:12px;padding:14px 24px;font-size:15px;font-weight:600;cursor:pointer;width:90%;max-width:320px;';
         btn.addEventListener('click', () => {
             div.style.pointerEvents='none'; div.style.opacity='0.6';
-            // Hide the welcome card when user clicks Let's Go
             const welcomeCard = document.getElementById('onboardingWelcome');
             if (welcomeCard) welcomeCard.style.display = 'none';
             sendMessage('Let\'s go!', { step: 0, data: {} });
         });
         div.appendChild(btn);
+        container.appendChild(div);
+    }
+    else if (comp.type === 'plan_or_customize') {
+        const div = document.createElement('div');
+        div.style.cssText = 'text-align:center;padding:8px 0;';
+
+        const genBtn = document.createElement('button');
+        genBtn.textContent = '⚡ Generate My Plan';
+        genBtn.style.cssText = 'background:linear-gradient(135deg,#6366f1,#8b5cf6);color:#fff;border:none;border-radius:12px;padding:14px 24px;font-size:15px;font-weight:600;cursor:pointer;width:90%;max-width:320px;';
+        genBtn.addEventListener('click', () => {
+            div.style.pointerEvents='none'; div.style.opacity='0.6';
+            sendMessage('⚡ Generate my plan!', { step: 2, data: { days_per_week: 4, quick_start: true } });
+        });
+        div.appendChild(genBtn);
+        const genNote = document.createElement('div');
+        genNote.style.cssText = 'font-size:11px;color:var(--tx3);margin:5px 0 14px;';
+        genNote.textContent = 'All exercises included · customize anytime in Settings';
+        div.appendChild(genNote);
+
+        const orDiv = document.createElement('div');
+        orDiv.style.cssText = 'font-size:12px;color:var(--tx3);margin-bottom:10px;';
+        orDiv.textContent = '— or —';
+        div.appendChild(orDiv);
+
+        const custBtn = document.createElement('button');
+        custBtn.textContent = '🎨 Customize First';
+        custBtn.style.cssText = 'background:transparent;color:var(--acc);border:2px solid var(--acc);border-radius:12px;padding:12px 20px;font-size:13px;font-weight:600;cursor:pointer;width:90%;max-width:320px;';
+        custBtn.addEventListener('click', () => {
+            div.style.pointerEvents='none'; div.style.opacity='0.6';
+            sendMessage('Let me customize first', { step: 2, data: { days_per_week: 4 } });
+        });
+        div.appendChild(custBtn);
+        const custNote = document.createElement('div');
+        custNote.style.cssText = 'font-size:11px;color:var(--tx3);margin-top:5px;';
+        custNote.textContent = 'Remove exercises you don\'t have access to';
+        div.appendChild(custNote);
+
+        container.appendChild(div);
+    }
+    else if (comp.type === 'category_deselect_picker') {
+        const isDeselect = comp.mode === 'deselect';
+        const div = document.createElement('div');
+        div.className = 'ui-picker';
+        const selectedIds = new Set();
+        const totalCount = comp.items.length;
+        if (isDeselect) comp.items.forEach(item => selectedIds.add(item.id));
+
+        const grid = document.createElement('div');
+        grid.className = 'ui-picker-grid';
+
+        const label = document.createElement('div');
+        label.className = 'supp-group-label';
+        label.textContent = comp.category_label;
+        grid.appendChild(label);
+
+        comp.items.forEach(item => {
+            const el = document.createElement('div');
+            el.className = isDeselect ? 'ui-picker-item selected' : 'ui-picker-item';
+            const desc = item.description || '';
+            const rx = item.rx || '';
+            el.innerHTML = `<span class="pick-check"></span><span class="pick-name">${item.name}</span>${desc ? `<span class="pick-desc">${desc}</span>` : ''}${rx ? `<span class="pick-rx">${rx}</span>` : ''}`;
+            el.addEventListener('click', () => {
+                el.classList.toggle('selected');
+                if (el.classList.contains('selected')) selectedIds.add(item.id);
+                else selectedIds.delete(item.id);
+                updateBtn();
+            });
+            grid.appendChild(el);
+        });
+
+        const confirmBtn = document.createElement('button');
+        confirmBtn.className = 'ui-picker-confirm';
+        confirmBtn.disabled = false;
+
+        function updateBtn() {
+            if (isDeselect) {
+                const removed = totalCount - selectedIds.size;
+                confirmBtn.textContent = removed > 0
+                    ? `Next → (keeping ${selectedIds.size} of ${totalCount})`
+                    : `Next → (all ${totalCount})`;
+            } else {
+                confirmBtn.textContent = selectedIds.size > 0
+                    ? `Finish → (${selectedIds.size} selected)`
+                    : `Skip → (none selected)`;
+            }
+        }
+        updateBtn();
+
+        confirmBtn.addEventListener('click', () => {
+            confirmBtn.disabled = true; confirmBtn.textContent = '⏳ Loading...';
+            grid.querySelectorAll('.ui-picker-item').forEach(i => i.style.pointerEvents='none');
+            if (isDeselect) {
+                sendMessage(`Kept ${selectedIds.size} of ${totalCount}`, { step, data: { kept_ids: [...selectedIds] } });
+            } else {
+                sendMessage(`Selected ${selectedIds.size}`, { step, data: { selected_ids: [...selectedIds] } });
+            }
+        });
+
+        div.appendChild(grid);
+        div.appendChild(confirmBtn);
         container.appendChild(div);
     }
 }

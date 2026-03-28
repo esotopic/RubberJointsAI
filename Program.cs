@@ -611,10 +611,88 @@ app.MapPost("/api/ai/chat", async (HttpContext context, RubberJointsAIRepository
             if (prefs == null)
                 prefs = new RubberJointsAI.Models.UserPreferences { UserId = userId, OnboardingStep = 0 };
 
-            // Step 0: Welcome acknowledged → move to step 1 (AI questionnaire)
-            if (selectionStep.HasValue && selectionStep.Value == 0)
+            // Process selection-based steps (buttons/pickers)
+            if (selectionStep.HasValue)
             {
-                prefs.OnboardingStep = 1;
+                switch (selectionStep.Value)
+                {
+                    case 0: // Welcome acknowledged → move to step 1 (AI questionnaire)
+                        prefs.OnboardingStep = 1;
+                        break;
+                    case 2: // Generate or Customize choice
+                    {
+                        int selectedDayCount = prefs.DaysPerWeek > 0 ? prefs.DaysPerWeek : 4;
+                        if (selectionData.TryGetProperty("days_per_week", out var dpw))
+                            selectedDayCount = dpw.GetInt32();
+
+                        bool isQuickStart = selectionData.TryGetProperty("quick_start", out var qs) && qs.GetBoolean();
+                        if (isQuickStart)
+                        {
+                            // Generate plan with ALL exercises
+                            var autoExercises = await repository.GetAllExercisesAsync();
+                            prefs.SelectedExercises = string.Join(",", autoExercises.Select(e => e.Id));
+                            prefs.DaysPerWeek = selectedDayCount;
+                            prefs.SelectedSupplements = "";
+                            prefs.OnboardingStep = 7;
+                            await repository.SaveUserPreferencesAsync(prefs);
+                            await repository.GenerateCustomPlanAsync(userId, prefs);
+                            var qsPrompt = $"You are the AI Coach for a hilariously serious joint & mobility workout program. The user '{userId}' just did a quick setup! Their 4-week plan has been auto-generated: {selectedDayCount} days/week using all available exercises! Celebrate! Keep it to 2-3 sentences. Make a funny joint/mobility joke. Tell them to tap START TRAINING to begin. Mention they can remove exercises they don't want from Settings.";
+                            var qsText = await CallClaudeAsync(httpFactory, apiKey, qsPrompt, "Quick start!", history);
+                            return Results.Json(new { success = true, response = qsText, onboarding_step = 7, onboarding_complete = true });
+                        }
+                        // Customize path: go to step 3 (warmup picker)
+                        prefs.DaysPerWeek = selectedDayCount;
+                        prefs.OnboardingStep = 3;
+                        break;
+                    }
+                    case 3: // Warm-up customization
+                    {
+                        var keptIds = new List<string>();
+                        if (selectionData.TryGetProperty("kept_ids", out var keptEl))
+                            foreach (var id in keptEl.EnumerateArray()) keptIds.Add(id.GetString() ?? "");
+                        prefs.SelectedExercises = string.Join(",", keptIds);
+                        prefs.OnboardingStep = 4;
+                        break;
+                    }
+                    case 4: // Mobility customization
+                    {
+                        var keptIds = new List<string>();
+                        if (selectionData.TryGetProperty("kept_ids", out var keptEl))
+                            foreach (var id in keptEl.EnumerateArray()) keptIds.Add(id.GetString() ?? "");
+                        var existing = (prefs.SelectedExercises ?? "").Split(',', StringSplitOptions.RemoveEmptyEntries).ToList();
+                        existing.AddRange(keptIds);
+                        prefs.SelectedExercises = string.Join(",", existing);
+                        prefs.OnboardingStep = 5;
+                        break;
+                    }
+                    case 5: // Recovery customization
+                    {
+                        var keptIds = new List<string>();
+                        if (selectionData.TryGetProperty("kept_ids", out var keptEl))
+                            foreach (var id in keptEl.EnumerateArray()) keptIds.Add(id.GetString() ?? "");
+                        var existing = (prefs.SelectedExercises ?? "").Split(',', StringSplitOptions.RemoveEmptyEntries).ToList();
+                        existing.AddRange(keptIds);
+                        prefs.SelectedExercises = string.Join(",", existing);
+                        prefs.OnboardingStep = 6;
+                        break;
+                    }
+                    case 6: // Supplements (opt-in)
+                    {
+                        var selectedSuppIds = new List<string>();
+                        if (selectionData.TryGetProperty("selected_ids", out var selEl))
+                            foreach (var id in selEl.EnumerateArray()) selectedSuppIds.Add(id.GetString() ?? "");
+                        prefs.SelectedSupplements = string.Join(",", selectedSuppIds);
+                        prefs.OnboardingStep = 7;
+                        await repository.SaveUserPreferencesAsync(prefs);
+                        await repository.GenerateCustomPlanAsync(userId, prefs);
+                        var exIds = (prefs.SelectedExercises ?? "").Split(',', StringSplitOptions.RemoveEmptyEntries);
+                        int exCount = exIds.Length;
+                        int suppCount = selectedSuppIds.Count;
+                        var custPrompt = $"You are the AI Coach for a hilariously serious joint & mobility workout program. The user '{userId}' just finished customizing their plan! They selected {exCount} exercises and {suppCount} supplements. Their 4-week plan has been generated: {prefs.DaysPerWeek} days/week. Celebrate! Keep it to 2-3 sentences. Make a funny joint/mobility joke. Tell them to tap START TRAINING to begin.";
+                        var custText = await CallClaudeAsync(httpFactory, apiKey, custPrompt, "Plan customized!", history);
+                        return Results.Json(new { success = true, response = custText, onboarding_step = 7, onboarding_complete = true });
+                    }
+                }
                 await repository.SaveUserPreferencesAsync(prefs);
             }
 
@@ -636,6 +714,67 @@ RULES:
                     string.IsNullOrEmpty(userMessage) ? "Hello!" : userMessage, history);
                 object uiComp0 = new { type = "welcome_start", id = "welcome" };
                 return Results.Json(new { success = true, response = aiResponse0, onboarding_step = 0, ui_component = uiComp0 });
+            }
+
+            // Steps 2-6: Generate/Customize choice and category pickers
+            if (step >= 2 && step <= 6)
+            {
+                var allExercisesOb = await repository.GetAllExercisesAsync();
+
+                string stepContext = step switch
+                {
+                    2 => "The app will show buttons below: 'Generate My Plan' (uses all exercises) or 'Customize First' (lets them pick). Keep it to 2 sentences. Say something encouraging about their plan being ready.",
+                    3 => "Time to pick warm-up exercises! Everything is turned on by default — just tap to remove any warm-ups that don't work for you. 1-2 sentences, keep it light.",
+                    4 => "Now for mobility exercises! Same deal — everything's enabled, just turn off what you don't want. 1-2 sentences, be encouraging about mobility.",
+                    5 => "Last exercise category: recovery tools! Turn off anything you don't have access to. 1-2 sentences, say something fun about recovery.",
+                    6 => "Final step: supplements! These are all OFF by default — turn on any you want to track. Totally optional. 1-2 sentences, be chill about it.",
+                    _ => ""
+                };
+
+                string obStepPrompt = $@"You are the AI Coach for a hilariously serious joint & mobility workout program.
+The user '{userId}' is in setup step {step}. {stepContext}
+RULES: Keep responses SHORT (2-3 sentences max). Mobile users. Be warm, funny, encouraging. The app shows interactive UI below your message — do NOT list exercises or options. Do NOT use bullet points.";
+
+                string obStepText = await CallClaudeAsync(httpFactory, apiKey, obStepPrompt,
+                    string.IsNullOrEmpty(userMessage) ? "Next step!" : userMessage, history);
+
+                object? obUiComp = null;
+                var allSuppsOb = step == 6 ? await repository.GetSupplementsAsync() : new List<RubberJointsAI.Models.Supplement>();
+                switch (step)
+                {
+                    case 2:
+                        obUiComp = new { type = "plan_or_customize", id = "plan_choice" };
+                        break;
+                    case 3:
+                    {
+                        var items = allExercisesOb.Where(e => e.Category == "warmup_tool")
+                            .Select(e => new { id = e.Id, name = e.Name, description = e.Targets, rx = e.DefaultRx ?? "" }).ToList();
+                        obUiComp = new { type = "category_deselect_picker", id = "warmup_picker", category_label = "🔥 Warm-Up Exercises", items, mode = "deselect" };
+                        break;
+                    }
+                    case 4:
+                    {
+                        var items = allExercisesOb.Where(e => e.Category == "mobility")
+                            .Select(e => new { id = e.Id, name = e.Name, description = e.Targets, rx = e.DefaultRx ?? "" }).ToList();
+                        obUiComp = new { type = "category_deselect_picker", id = "mobility_picker", category_label = "🧘 Mobility Exercises", items, mode = "deselect" };
+                        break;
+                    }
+                    case 5:
+                    {
+                        var items = allExercisesOb.Where(e => e.Category == "recovery_tool")
+                            .Select(e => new { id = e.Id, name = e.Name, description = e.Targets, rx = e.DefaultRx ?? "" }).ToList();
+                        obUiComp = new { type = "category_deselect_picker", id = "recovery_picker", category_label = "🧊 Recovery Tools", items, mode = "deselect" };
+                        break;
+                    }
+                    case 6:
+                    {
+                        var items = allSuppsOb
+                            .Select(s => new { id = s.Id, name = s.Name, description = s.Dose ?? "", rx = s.Time ?? "", timeGroup = s.TimeGroup ?? "am" }).ToList();
+                        obUiComp = new { type = "category_deselect_picker", id = "supplement_picker", category_label = "💊 Supplements (Optional)", items, mode = "select" };
+                        break;
+                    }
+                }
+                return Results.Json(new { success = true, response = obStepText, onboarding_step = step, ui_component = obUiComp });
             }
 
             // Step 1: AI-driven conversational questionnaire with tool use
@@ -761,19 +900,15 @@ DO NOT tell the user you're calling a tool. Just say something celebratory and m
                         string problemAreas = ti.TryGetProperty("problem_areas", out var pa) ? pa.GetString() ?? "" : "";
                         bool hasEquipment = ti.TryGetProperty("has_equipment", out var he) && he.GetBoolean();
 
-                        // Save profile + generate plan with all exercises
-                        var autoExercises = await repository.GetAllExercisesAsync();
+                        // Save profile and move to step 2 (Generate/Customize choice)
                         prefs.ProfileNotes = profileSummary;
                         prefs.DaysPerWeek = daysPerWeek;
                         prefs.HasGym = hasEquipment;
-                        prefs.SelectedExercises = string.Join(",", autoExercises.Select(e => e.Id));
-                        prefs.SelectedSupplements = "";
-                        prefs.OnboardingStep = 7;
+                        prefs.OnboardingStep = 2;
                         await repository.SaveUserPreferencesAsync(prefs);
-                        await repository.GenerateCustomPlanAsync(userId, prefs);
 
-                        onboardingComplete = true;
-                        obToolResults.Add(new { type = "tool_result", tool_use_id = tid, content = $"Plan generated successfully! {daysPerWeek} days/week, {autoExercises.Count} exercises, all categories included. Profile saved. Problem areas: {problemAreas}. The user can now tap START TRAINING to begin. They can customize exercises from the Settings page." });
+                        onboardingComplete = false; // Not done yet — still need to choose generate/customize
+                        obToolResults.Add(new { type = "tool_result", tool_use_id = tid, content = $"Profile saved! Days/week: {daysPerWeek}. Problem areas: {problemAreas}. Now the app will show the user a choice to either generate their plan immediately or customize which exercises to include. Tell them something encouraging — the app will show buttons below your message." });
                     }
                     else
                     {
@@ -783,6 +918,11 @@ DO NOT tell the user you're calling a tool. Just say something celebratory and m
                 onboardMessages.Add(new { role = "user", content = obToolResults });
             }
 
+            // After AI questionnaire completes and sets step=2, return with plan_or_customize UI
+            if (prefs.OnboardingStep == 2)
+            {
+                return Results.Json(new { success = true, response = obAiText, onboarding_step = 2, ui_component = new { type = "plan_or_customize", id = "plan_choice" } });
+            }
             return Results.Json(new { success = true, response = obAiText, onboarding_step = onboardingComplete ? 7 : 1, onboarding_complete = onboardingComplete });
         }
 
