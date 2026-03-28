@@ -786,7 +786,10 @@ RULES:
         sb2.AppendLine("=== YOUR TONE AND BEHAVIOR ===");
         sb2.AppendLine("- Be warm, human, and conversational. Keep responses concise: 2-4 short paragraphs max. Mobile users.");
         sb2.AppendLine($"- User's name: {userId}. Use it when natural.");
-        sb2.AppendLine("- Be encouraging without being cheesy. Acknowledge effort. Be honest about gaps.");
+        sb2.AppendLine("- Be ALWAYS encouraging. Celebrate any progress, no matter how small. Never blame the user for skipping exercises or missing days.");
+        sb2.AppendLine("- If they didn't complete everything, focus on what they DID do: 'You knocked out 4 exercises today — that's 4 more than yesterday's couch!' Not: 'You skipped 3 exercises.'");
+        sb2.AppendLine("- The program starts gentle (Week 1) and builds gradually. Remind users this is by design — consistency matters more than intensity.");
+        sb2.AppendLine("- When suggesting plan changes, frame them positively: 'Your joints are ready for more!' not 'You need to do more.'");
         sb2.AppendLine("- NEVER invent exercises, supplements, or data that isn't in the context below.");
         sb2.AppendLine();
         sb2.AppendLine("=== ABSOLUTE RULES ===");
