@@ -423,34 +423,64 @@ namespace RubberJointsAI.Data
         {
             var exercises = new List<(string id, string name, string category, string targets, string description, string cues, string explanation, string warning, string phases, string defaultRx)>
             {
+                // ── WARM-UP: Home ──
+                ("brisk-walking", "Brisk Walking", "warmup_tool", "Full Body", "Walk at a brisk pace to increase systemic blood flow", "5-10 min | Moderate pace | Swing arms naturally", "Low-impact way to raise core temperature and lubricate joints", "", "1,2", "5 min"),
+                ("arm-circles", "Arm Circles", "warmup_tool", "Shoulders", "Circle arms forward and backward to lubricate shoulder joints", "10 forward | 10 backward | Gradually increase size", "Lubricates the shoulder glenohumeral joints and warms rotator cuff", "", "1,2", "2 min"),
+                ("leg-swings", "Leg Swings", "warmup_tool", "Hips", "Swing legs front-to-back and side-to-side for hip prep", "10 each direction per leg | Hold wall for balance", "Opens the hip joint and prepares the labrum for movement", "Keep core engaged for stability", "1,2", "2 min"),
+                ("glute-bridges", "Glute Bridges", "warmup_tool", "Glutes,Lower Back", "Lift hips from floor to activate posterior chain", "Feet hip-width | Squeeze glutes at top | 15 reps", "Activates the posterior chain to support the lower back and pelvis", "Don't hyperextend the lower back", "1,2", "2 min"),
+                ("marching-in-place", "Marching in Place", "warmup_tool", "Hips,Knees", "March with high knees to warm up lower body", "Lift knees to hip height | Pump arms | 2 min", "Simple knee and hip flexion to increase synovial fluid flow", "", "1,2", "2 min"),
+                // ── WARM-UP: Gym ──
                 ("hot-tub", "Hot Tub", "warmup_tool", "Full Body", "Warm up in hot water to increase circulation", "2-5 min | No excessive heat", "Heat increases tissue elasticity and blood flow", "Avoid if pregnant or have heart conditions", "1,2", "5 min"),
                 ("vibration-plate", "Vibration Plate", "warmup_tool", "Full Body", "Stand on vibration plate for neuromuscular activation", "Feet hip-width | Slight knee bend | 30-60 sec", "Vibration activates muscles and improves proprioception", "Not for acute injuries or pregnancy", "1,2", "1 min"),
+                ("stationary-bike", "Stationary Bike", "warmup_tool", "Knees,Hips", "Pedal at low resistance for continuous circular motion", "5-10 min | Low resistance | Moderate cadence 60-80 RPM", "Continuous low-resistance circular motion lubricates knees and hips", "Adjust seat height to avoid knee strain", "1,2", "5 min"),
+                ("elliptical", "Elliptical", "warmup_tool", "Full Body", "Glide on elliptical for zero-impact full body warm-up", "5-10 min | Low resistance | Natural stride", "Weight-bearing but zero-impact, warms entire kinetic chain", "Start slowly; increase pace gradually", "1,2", "5 min"),
+                ("rowing-machine", "Rowing Machine", "warmup_tool", "Full Body", "Row at light intensity for multi-joint warm-up", "5 min | Low resistance | Focus on form: legs-back-arms", "Coordinated multi-joint extension and flexion warms shoulders, back, hips", "Maintain neutral spine throughout", "1,2", "5 min"),
+                ("incline-treadmill", "Incline Treadmill Walk", "warmup_tool", "Hips,Ankles,Calves", "Walk slowly on incline to warm up lower body", "2.0-3.0 mph | 3-5% grade | 5-10 min", "Slow incline walking increases ankle dorsiflexion demands and hip extension", "Hold rails only if needed for balance", "1,2", "5 min"),
+                ("stair-climber", "Stair Climber", "warmup_tool", "Hips,Knees,Ankles", "Climb at slow tempo for functional vertical movement", "5 min | Slow tempo | Full foot on step", "Functional vertical movement warms entire lower body kinetic chain", "Maintain upright posture; don't lean on handles", "1,2", "5 min"),
+                // ── MOBILITY: Home ──
                 ("cars-routine", "CARs Routine", "mobility", "All Joints", "Controlled Articular Rotations for joint mobility", "Slow circles | Full range | No momentum", "CARs improve joint health and body awareness", "Move within pain-free range only", "1,2", "5 min"),
                 ("90-90-hip-switch", "90/90 Hip Switch", "mobility", "Hips", "Switch legs in 90/90 position for hip mobility", "Chest upright | Slow switch | 30 sec each side", "Improves hip external and internal rotation", "Stop if sharp pain occurs", "1,2", "30 sec each"),
+                ("cat-cow", "Cat-Cow Stretch", "mobility", "T-Spine,Lumbar", "Alternate between arching and rounding the spine on all fours", "Inhale arch | Exhale round | 10-15 reps | Slow and controlled", "Thoracic and lumbar spinal articulation improves disc hydration", "Move gently; avoid forcing end range", "1,2", "2 min"),
+                ("wall-slides", "Wall Slides", "mobility", "Shoulders,Scapula", "Slide arms up wall to improve overhead reach", "Back flat against wall | Arms in W position | Slide up to Y | 10 reps", "Builds scapular stability and improves shoulder overhead mobility", "Keep lower back pressed against wall", "1,2", "10 reps"),
+                ("bird-dog", "Bird-Dog", "mobility", "Core,Spine", "Extend opposite arm and leg from all-fours position", "Slow extension | Hold 3 sec | Alternate sides | 8 each", "Core-stabilized spinal extension improves balance and coordination", "Keep hips level; avoid rotating", "1,2", "8 reps each"),
+                ("doorway-chest-stretch", "Doorway Chest Stretch", "mobility", "Chest,Shoulders", "Stretch pectorals using a doorframe for support", "Arm at 90° on doorframe | Lean forward gently | 30 sec each side", "Opens pectorals to reduce hunched posture and improve breathing", "Don't force the stretch; ease into it", "1,2", "30 sec each"),
                 ("shinbox-getup", "Shinbox Get-Up", "mobility", "Hips,Core", "Get up from shinbox position without using hands", "Controlled movement | No hand assist | 5 reps", "Builds hip mobility and core stability", "Requires significant hip mobility", "2", "5 reps"),
                 ("worlds-greatest-stretch", "World's Greatest Stretch", "mobility", "Hips,T-Spine,Ankles", "Dynamic stretch targeting multiple areas", "Lunge | Rotate | Reach | 8-10 reps each side", "Comprehensive dynamic mobility for warm-up", "Avoid with acute injuries", "1,2", "8 reps each"),
                 ("deep-squat-hold", "Deep Squat Hold", "mobility", "Hips,Knees,Ankles", "Hold bottom of squat position", "Feet shoulder-width | Upright torso | Hold 30-60 sec", "Improves squat mechanics and ankle mobility", "Use support if needed for balance", "1,2", "60 sec"),
                 ("couch-stretch", "Couch Stretch", "mobility", "Hips,Quads", "Quad stretch on couch or box", "Back knee elevated | Gentle forward lean | 90 sec each", "Improves hip and quad flexibility", "Can be intense; progress gradually", "1,2", "90 sec each"),
                 ("wall-ankle-mob", "Wall Ankle Mobilization", "mobility", "Ankles", "Mobilize ankle with wall for dorsiflexion", "Shin against wall | Lean forward | 90 sec each", "Improves ankle dorsiflexion and calf mobility", "Stop if pain in ankle", "1,2", "90 sec each"),
                 ("open-book", "Open Book (T-Spine)", "mobility", "T-Spine", "Thoracic spine rotation from side-lying", "Side-lying | Controlled rotation | 10 reps each side", "Improves thoracic rotation and spinal mobility", "Avoid jerky movements", "1,2", "10 reps each"),
-                ("dead-hang", "Dead Hang", "mobility", "Shoulders,Spine,Grip", "Hang from bar with full body relaxed", "Full grip | Shoulders engaged | 20-60 sec", "Decompresses spine and improves shoulder mobility", "Build up duration gradually", "1,2", "30 sec"),
                 ("quadruped-rocking", "Quadruped Rocking", "mobility", "Hips,Ankles", "Rock back and forth on hands and knees", "Hands under shoulders | Slow rocks | 20 reps", "Improves hip and ankle mobility", "Keep core engaged", "1,2", "20 reps"),
                 ("hip-flexor-pails-rails", "Hip Flexor PAILs/RAILs", "mobility", "Hips", "Proprioceptive stretching for hip flexors", "Hold position | Contract | Relax | 8-10 reps", "Increases hip flexor mobility and stability", "Requires space and understanding of PAILs/RAILs", "2", "8 reps"),
                 ("90-90-pails-rails", "90/90 PAILs/RAILs", "mobility", "Hips", "Proprioceptive stretching in 90/90 position", "Hold | Contract | Relax | 8-10 reps each side", "Improves hip external rotation", "Advanced technique; build foundation first", "2", "8 reps each"),
                 ("ankle-pails-rails", "Ankle PAILs/RAILs", "mobility", "Ankles", "Proprioceptive stretching for ankle mobility", "Hold position | Contract | Relax | 8-10 reps", "Improves ankle dorsiflexion and control", "Requires proprioceptive understanding", "2", "8 reps"),
+                // ── MOBILITY: Gym ──
+                ("dead-hang", "Dead Hang", "mobility", "Shoulders,Spine,Grip", "Hang from bar with full body relaxed", "Full grip | Shoulders engaged | 20-60 sec", "Decompresses spine and improves shoulder mobility", "Build up duration gradually", "1,2", "30 sec"),
+                ("trx-squat", "TRX Assisted Squat", "mobility", "Hips,Knees,Ankles", "Hold TRX straps for deep supported squat", "Lean back slightly | Sink into deep squat | Hold 30 sec", "Deep hip and knee flexion with support allows fuller range of motion", "Keep weight in heels; don't pull on straps", "1,2", "30 sec"),
+                ("cable-face-pulls", "Cable Face Pulls", "mobility", "Shoulders,Rotator Cuff", "Pull cable rope to face level for rear deltoid and cuff work", "Light weight | Elbows high | Squeeze shoulder blades | 12-15 reps", "Strengthens rear deltoids and rotator cuff for shoulder joint health", "Use light weight; this is corrective not strength", "1,2", "12 reps"),
+                ("bench-tspine-stretch", "Bench T-Spine Stretch", "mobility", "T-Spine,Lats", "Kneel and extend arms on bench for upper back opening", "Kneel arm's length from bench | Arms on bench | Sink chest down | 30 sec", "Upper back extension improves thoracic mobility and lat length", "Don't force; breathe into the stretch", "1,2", "30 sec"),
+                ("banded-ankle-distraction", "Banded Ankle Distraction", "mobility", "Ankles", "Use resistance band to distract ankle joint for dorsiflexion", "Band around ankle | Step forward into lunge | 30 sec each", "Band creates joint space allowing greater dorsiflexion range", "Moderate band tension; stop if pinching", "1,2", "30 sec each"),
+                ("smith-machine-stretch", "Smith Machine Stretch", "mobility", "Hamstrings,Hips", "Use smith machine bar at various heights for stretching", "Set bar height | Leg on bar | Lean forward gently | 30 sec each", "Adjustable height allows progressive hamstring and hip work", "Don't bounce; hold steady stretches", "1,2", "30 sec each"),
                 ("hydro-massager", "Hydro Massager", "recovery_tool", "Full Body", "Use hydro massager for muscle recovery", "Various speeds | Target muscles | 5-10 min", "Increases circulation and aids recovery", "Avoid over-sensitive areas", "1,2", "5 min"),
                 ("steam-sauna", "Steam Sauna", "recovery_tool", "Full Body", "Relax in steam sauna for recovery", "10-20 min | Stay hydrated | Moderate temperature", "Promotes relaxation and circulation", "Avoid if pregnant or have heart conditions", "1,2", "15 min"),
                 ("dry-sauna", "Dry Sauna", "recovery_tool", "Full Body", "Relax in dry sauna for muscle recovery", "10-20 min | Stay hydrated | Moderate temperature", "Reduces muscle soreness and promotes recovery", "Stay well hydrated", "1,2", "15 min"),
                 ("compex-warmup", "Compex — Warmup", "recovery_tool", "Quads,Glutes", "Use Compex muscle stimulator for warm-up", "Warmup setting | 10-15 min | Quads and glutes", "Prepares muscles for training", "Follow device instructions", "1,2", "10 min"),
                 ("compex-recovery", "Compex — Recovery", "recovery_tool", "Quads,Glutes,Calves", "Use Compex for post-workout recovery", "Recovery setting | 15-20 min | Multiple muscles", "Aids muscle recovery and reduces soreness", "Follow device instructions", "1,2", "15 min"),
                 ("compression-boots", "Compression Boots", "recovery_tool", "Legs", "Use compression boots for leg recovery", "15-30 min | Moderate compression | Legs only", "Improves circulation and reduces leg soreness", "Start with shorter durations", "1,2", "20 min"),
-                // Home-friendly recovery tools
+                // ── RECOVERY: Home ──
+                ("quality-sleep", "Quality Sleep", "recovery_tool", "Full Body", "Prioritize 7-9 hours of quality sleep for tissue repair", "Cool room | Dark environment | Consistent schedule | No screens 1hr before", "The primary window for cellular tissue repair and joint recovery", "", "1,2", "7-9 hrs"),
+                ("hydration", "Hydration", "recovery_tool", "Full Body", "Drink adequate water throughout the day", "Half body weight in oz | Sip consistently | Add electrolytes if active", "Maintains the volume of fluid in joint cartilage and synovial fluid", "", "1,2", "All day"),
                 ("foam-roller", "Foam Roller", "recovery_tool", "Full Body", "Roll out tight muscles for myofascial release", "Slow rolls | 30-60 sec per area | Pause on tender spots", "Breaks up adhesions and improves tissue quality", "Avoid rolling directly on joints or spine", "1,2", "10 min"),
+                ("tennis-ball-release", "Tennis Ball Release", "recovery_tool", "Feet,Glutes,Upper Back", "Self-myofascial release using a tennis ball on tight spots", "Place ball on tight area | Apply body weight | Roll slowly | 30-60 sec per spot", "Targeted release for tight hot spots; gentler than lacrosse ball", "Avoid direct pressure on bones or nerves", "1,2", "8 min"),
                 ("lacrosse-ball", "Lacrosse Ball Release", "recovery_tool", "Shoulders,Hips,Feet", "Targeted deep tissue release with a lacrosse ball", "Pin and move | 30-60 sec per spot | Breathe through it", "Reaches deeper tissue than foam roller", "Avoid bony areas and nerves", "1,2", "8 min"),
+                ("active-recovery-walk", "Active Recovery Walk", "recovery_tool", "Full Body", "Gentle walk to flush metabolic waste and promote healing", "15-20 min | Easy pace | Focus on breathing | Outdoors if possible", "Flushes metabolic waste through gentle movement without adding stress", "", "1,2", "15 min"),
                 ("contrast-shower", "Contrast Shower", "recovery_tool", "Full Body", "Alternate hot and cold water for circulation boost", "3 min hot | 1 min cold | Repeat 3x | End on cold", "Promotes blood flow and reduces inflammation", "Start gradually if new to cold exposure", "1,2", "12 min"),
+                ("epsom-bath", "Epsom Salt Bath", "recovery_tool", "Full Body", "Soak in warm water with Epsom salts for recovery", "2 cups Epsom salt | Warm water | 15-20 min soak", "Magnesium absorption helps muscle relaxation", "Stay hydrated; avoid if you have low blood pressure", "1,2", "20 min"),
                 ("yoga-cooldown", "Yoga Cool-Down Flow", "recovery_tool", "Full Body", "Gentle yoga sequence for recovery and relaxation", "Child's pose | Pigeon | Supine twist | Savasana | 5 breaths each", "Calms nervous system and promotes recovery", "Move gently; never force a stretch", "1,2", "15 min"),
                 ("self-massage", "Self-Massage (Hands/Stick)", "recovery_tool", "Calves,Forearms,Neck", "Manual massage using hands or a massage stick", "Slow strokes | Moderate pressure | 2-3 min per area", "Improves circulation and reduces muscle tension", "Avoid inflamed or injured areas", "1,2", "10 min"),
-                ("epsom-bath", "Epsom Salt Bath", "recovery_tool", "Full Body", "Soak in warm water with Epsom salts for recovery", "2 cups Epsom salt | Warm water | 15-20 min soak", "Magnesium absorption helps muscle relaxation", "Stay hydrated; avoid if you have low blood pressure", "1,2", "20 min")
+                ("massage-gun", "Massage Gun", "recovery_tool", "Full Body", "Use percussive therapy device to break up soft tissue tension", "30-60 sec per muscle group | Medium speed | Don't press too hard", "Percussive therapy increases blood flow and breaks up tension", "Avoid bones, joints, and nerves; don't use on injuries", "1,2", "8 min"),
+                // ── RECOVERY: Gym ──
+                ("cold-plunge", "Cold Plunge", "recovery_tool", "Full Body", "Immerse in cold water to limit acute swelling", "2-5 min | 50-60°F water | Breathe calmly | Work up gradually", "Intense vasoconstriction limits acute swelling and inflammation", "Start with 1 min; not for those with heart conditions", "1,2", "3 min")
             };
 
             using (var command = connection.CreateCommand())
@@ -462,7 +492,9 @@ namespace RubberJointsAI.Data
                     ) AS source (Id, Name, Category, Targets, Description, Cues, Explanation, Warning, Phases, DefaultRx)
                     ON target.Id = source.Id
                     WHEN MATCHED THEN
-                        UPDATE SET DefaultRx = source.DefaultRx
+                        UPDATE SET Name = source.Name, Category = source.Category, Targets = source.Targets,
+                                   Description = source.Description, Cues = source.Cues, Explanation = source.Explanation,
+                                   Warning = source.Warning, Phases = source.Phases, DefaultRx = source.DefaultRx
                     WHEN NOT MATCHED THEN
                         INSERT (Id, Name, Category, Targets, Description, Cues, Explanation, Warning, Phases, DefaultRx)
                         VALUES (source.Id, source.Name, source.Category, source.Targets, source.Description, source.Cues, source.Explanation, source.Warning, source.Phases, source.DefaultRx);";
@@ -2188,10 +2220,15 @@ namespace RubberJointsAI.Data
         // Exercises that require gym equipment — excluded from home-only plans
         private static readonly HashSet<string> GymOnlyExercises = new()
         {
-            "hot-tub", "vibration-plate",                          // warmup tools (gym equipment)
-            "dead-hang",                                            // needs pull-up bar
-            "hydro-massager", "steam-sauna", "dry-sauna",          // gym recovery
-            "compex-warmup", "compex-recovery", "compression-boots" // specialized recovery equipment
+            // Warm-up: gym machines
+            "hot-tub", "vibration-plate", "stationary-bike", "elliptical",
+            "rowing-machine", "incline-treadmill", "stair-climber",
+            // Mobility: gym equipment
+            "dead-hang", "trx-squat", "cable-face-pulls",
+            "bench-tspine-stretch", "banded-ankle-distraction", "smith-machine-stretch",
+            // Recovery: gym equipment
+            "hydro-massager", "steam-sauna", "dry-sauna", "cold-plunge",
+            "compex-warmup", "compex-recovery", "compression-boots"
         };
 
         public static bool IsHomeAppropriate(string exerciseId) => !GymOnlyExercises.Contains(exerciseId);
