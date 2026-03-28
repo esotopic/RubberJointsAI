@@ -68,7 +68,7 @@
         else
         {
             <div class="ai-topbar-combined" style="justify-content:center;">
-                <span class="ai-topbar-week" style="font-size:15px;font-weight:700;letter-spacing:0.04em;">🦴 RubberJointsAI Setup</span>
+                <span class="ai-topbar-week" style="font-size:15px;font-weight:700;letter-spacing:0.04em;">🔧 Setup</span>
             </div>
             <div class="onboarding-bar" id="onboardingBar">
                 @for (int i = 0; i < 7; i++)
@@ -91,19 +91,35 @@
                     <div class="ai-info-nugget">📊 Check <strong>Progress</strong> tab to track your journey</div>
                 </div>
             }
-            <div class="ai-message ai-message-assistant">
-                <div class="ai-avatar"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L9 7l-5 1 3.5 3.5L7 17l5-2.5L17 17l-.5-5.5L20 8l-5-1z"></path></svg></div>
-                <div class="ai-bubble ai-bubble-assistant">
-                    @if (Model.IsOnboarding)
-                    {
-                        <div class="ai-typing" id="initialLoader"><span></span><span></span><span></span></div>
-                    }
-                    else
-                    {
-                        <p>Ask me anything about your program, exercises, or supplements!</p>
-                    }
+            @if (Model.IsOnboarding)
+            {
+                <div class="onboarding-welcome" id="onboardingWelcome">
+                    <div style="text-align:center;padding:18px 16px 8px;">
+                        <div style="font-size:17px;font-weight:700;color:var(--tx1);">First Time Setup</div>
+                        <div style="font-size:13px;color:var(--tx3);margin-top:2px;">(this will only take a minute)</div>
+                    </div>
+                    <div class="ai-joke-card ai-joke-in-scroll" style="margin:8px 12px;">
+                        <div class="ai-joke-icon">😂</div>
+                        <div class="ai-joke-text" id="onboardingJoke"></div>
+                        <div class="ai-joke-tagline">— Your joints, probably</div>
+                    </div>
                 </div>
-            </div>
+                <div class="ai-message ai-message-assistant" id="onboardingAiMsg" style="display:none;">
+                    <div class="ai-avatar"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L9 7l-5 1 3.5 3.5L7 17l5-2.5L17 17l-.5-5.5L20 8l-5-1z"></path></svg></div>
+                    <div class="ai-bubble ai-bubble-assistant">
+                        <div class="ai-typing"><span></span><span></span><span></span></div>
+                    </div>
+                </div>
+            }
+            else
+            {
+                <div class="ai-message ai-message-assistant">
+                    <div class="ai-avatar"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L9 7l-5 1 3.5 3.5L7 17l5-2.5L17 17l-.5-5.5L20 8l-5-1z"></path></svg></div>
+                    <div class="ai-bubble ai-bubble-assistant">
+                        <p>Ask me anything about your program, exercises, or supplements!</p>
+                    </div>
+                </div>
+            }
         </div>
 
         <div class="ai-bottom-fixed">
@@ -393,6 +409,41 @@ function formatResponse(text) {
 
 function escapeHtml(text) { const d = document.createElement('div'); d.textContent = text; return d.innerHTML; }
 
+// ═══ Silent onboarding init (no user bubble) ═══
+async function sendOnboardingInit() {
+    const aiMsg = document.getElementById('onboardingAiMsg');
+    if (aiMsg) aiMsg.style.display = '';
+    const messagesDiv = document.getElementById('aiMessages');
+    messagesDiv.scrollTop = messagesDiv.scrollHeight;
+
+    try {
+        const body = { message: '', history: [] };
+        const resp = await fetch('/api/ai/chat', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+        const data = await resp.json();
+        const bubble = aiMsg.querySelector('.ai-bubble-assistant');
+
+        if (data.success && data.response) {
+            bubble.innerHTML = formatResponse(data.response);
+            conversationHistory.push({ role: 'assistant', content: data.response });
+            if (data.ui_component) {
+                const uiContainer = document.createElement('div');
+                uiContainer.className = 'ai-ui-component';
+                renderUIComponent(uiContainer, data.ui_component, data.onboarding_step);
+                bubble.appendChild(uiContainer);
+            }
+            if (data.onboarding_step !== undefined) {
+                currentOnboardingStep = data.onboarding_step;
+                updateOnboardingBar(data.onboarding_step);
+            }
+        } else {
+            bubble.innerHTML = `<p style="color:var(--red);">Something went wrong. ${data.error || 'Please refresh.'}</p>`;
+        }
+    } catch (err) {
+        if (aiMsg) aiMsg.querySelector('.ai-bubble-assistant').innerHTML = `<p style="color:var(--red);">Connection error. Please refresh.</p>`;
+    }
+    messagesDiv.scrollTop = messagesDiv.scrollHeight;
+}
+
 // ═══ Event handlers ═══
 sendBtn.addEventListener('click', () => sendMessage());
 input.addEventListener('keydown', function(e) { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); } });
@@ -412,8 +463,11 @@ document.getElementById('newChatBtn')?.addEventListener('click', function() {
 // ═══ Auto-send for onboarding or prompt param ═══
 (function() {
     if (IS_ONBOARDING) {
-        // Auto-start onboarding
-        setTimeout(() => sendMessage('Hey! I\'m ready to set up my plan.'), 400);
+        // Show joke in onboarding welcome
+        const oj = document.getElementById('onboardingJoke');
+        if (oj) oj.textContent = '"' + jokes[Math.floor(Math.random() * jokes.length)] + '"';
+        // Auto-start onboarding silently (no user message bubble)
+        setTimeout(() => sendOnboardingInit(), 600);
         return;
     }
 

@@ -535,7 +535,7 @@ app.MapPost("/api/ai/chat", async (HttpContext context, RubberJointsAIRepository
                         await repository.SaveUserPreferencesAsync(prefs);
                         await repository.GenerateCustomPlanAsync(userId, prefs);
                         // Return completion response
-                        var completionPrompt = $"You are the AI Coach inside RubberJointsAI. The user '{userId}' just completed onboarding. Their plan has been generated: {prefs.DaysPerWeek} days/week, {(prefs.HasGym ? "gym access" : "home only")}, {prefs.SelectedExercises.Split(',').Length} exercises, {prefs.SelectedSupplements.Split(',').Length} supplements. Celebrate! Keep it to 2-3 sentences. Make a funny joint/mobility joke. Tell them to tap START TRAINING to begin.";
+                        var completionPrompt = $"You are the AI Coach for a hilariously serious joint & mobility workout program — because your joints called and they want better treatment. The user '{userId}' just completed onboarding. Their plan has been generated: {prefs.DaysPerWeek} days/week, {(prefs.HasGym ? "gym access" : "home only")}, {prefs.SelectedExercises.Split(',').Length} exercises, {prefs.SelectedSupplements.Split(',').Length} supplements. Celebrate! Keep it to 2-3 sentences. Make a funny joint/mobility joke. Tell them to tap START TRAINING to begin.";
                         var completionText = await CallClaudeAsync(httpFactory, apiKey, completionPrompt, "The plan is ready!", history);
                         return Results.Json(new { success = true, response = completionText, onboarding_step = 7, onboarding_complete = true });
                 }
@@ -558,7 +558,7 @@ app.MapPost("/api/ai/chat", async (HttpContext context, RubberJointsAIRepository
                 _ => "Onboarding complete."
             };
 
-            string onboardingSystemPrompt = $@"You are the AI Coach inside RubberJointsAI — a fun, warm mobility app.
+            string onboardingSystemPrompt = $@"You are the AI Coach for a hilariously serious joint & mobility workout program — because your joints deserve better than cracking every time you stand up.
 The user '{userId}' is going through initial setup (onboarding step {step} of 7).
 
 YOUR JOB: {stepContext}
@@ -691,7 +691,7 @@ RULES:
         var recentSessions2 = sessionLogs2.OrderByDescending(s => s.Date).Take(7).ToList();
 
         var sb2 = new StringBuilder();
-        sb2.AppendLine("You are the AI Coach inside RubberJointsAI — a mobile-first web application that guides users through a structured 4-week mobility and joint health program.");
+        sb2.AppendLine("You are the AI Coach for a hilariously serious joint & mobility workout program — a mobile-first app that helps users stop sounding like a bag of microwave popcorn every time they move. You guide them through a structured 4-week mobility and joint health program.");
         sb2.AppendLine();
         sb2.AppendLine("=== YOUR TONE AND BEHAVIOR ===");
         sb2.AppendLine("- Be warm, human, and conversational. Keep responses concise: 2-4 short paragraphs max. Mobile users.");
@@ -701,7 +701,7 @@ RULES:
         sb2.AppendLine();
         sb2.AppendLine("=== ABSOLUTE RULES ===");
         sb2.AppendLine("1. ONLY answer about: this app, exercises, supplements, milestones, progress, joint health, mobility, recovery/stretching.");
-        sb2.AppendLine("2. For ANYTHING unrelated: \"I'm your mobility coach and can only help with your RubberJointsAI program — exercises, supplements, progress, and joint health. What would you like to know about your plan?\"");
+        sb2.AppendLine("2. For ANYTHING unrelated: \"I'm your mobility coach and can only help with your joint workout program — exercises, supplements, progress, and joint health. What would you like to know about your plan?\"");
         sb2.AppendLine("3. Never act as doctor/trainer/PT. Never diagnose injuries.");
         sb2.AppendLine();
 
@@ -954,7 +954,7 @@ async Task<string> CallClaudeAsync(IHttpClientFactory httpFactory, string apiKey
     var response = await client.PostAsync("v1/messages", jsonContent);
     var responseBody = await response.Content.ReadAsStringAsync();
 
-    if (!response.IsSuccessStatusCode) return "Welcome to RubberJointsAI! Let's get you set up.";
+    if (!response.IsSuccessStatusCode) return "Welcome! Let's get those joints sorted out. 🦴";
 
     using var responseDoc = JsonDocument.Parse(responseBody);
     var content = responseDoc.RootElement.GetProperty("content");
