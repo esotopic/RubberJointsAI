@@ -2474,12 +2474,11 @@ namespace RubberJointsAI.Data
         /// </summary>
         public async Task<string> CreateCustomExerciseAsync(string userId, string id, string name, string category, string targets, string defaultRx)
         {
-            using var connection = new SqlConnection(_connectionString);
-            await connection.OpenAsync();
-
-            // Insert exercise if it doesn't exist
-            using (var cmd = connection.CreateCommand())
+            // Insert exercise if it doesn't exist (separate scope to release connection)
+            using (var connection = new SqlConnection(_connectionString))
             {
+                await connection.OpenAsync();
+                using var cmd = connection.CreateCommand();
                 cmd.CommandText = @"
                     IF NOT EXISTS (SELECT 1 FROM Exercises WHERE Id = @id)
                     INSERT INTO Exercises (Id, Name, Category, Targets, Description, DefaultRx)
@@ -2490,9 +2489,9 @@ namespace RubberJointsAI.Data
                 cmd.Parameters.AddWithValue("@targets", targets);
                 cmd.Parameters.AddWithValue("@rx", (object?)defaultRx ?? DBNull.Value);
                 await cmd.ExecuteNonQueryAsync();
-            }
+            } // connection released here
 
-            // Add to user preferences and regenerate plan
+            // Add to user preferences and regenerate plan (these open their own connections)
             var prefs = await GetUserPreferencesAsync(userId);
             if (prefs != null)
             {
@@ -2516,12 +2515,11 @@ namespace RubberJointsAI.Data
         /// </summary>
         public async Task<string> CreateCustomSupplementAsync(string userId, string id, string name, string dose, string time, string timeGroup)
         {
-            using var connection = new SqlConnection(_connectionString);
-            await connection.OpenAsync();
-
-            // Insert supplement if it doesn't exist
-            using (var cmd = connection.CreateCommand())
+            // Insert supplement if it doesn't exist (separate scope to release connection)
+            using (var connection = new SqlConnection(_connectionString))
             {
+                await connection.OpenAsync();
+                using var cmd = connection.CreateCommand();
                 cmd.CommandText = @"
                     IF NOT EXISTS (SELECT 1 FROM Supplements WHERE Id = @id)
                     INSERT INTO Supplements (Id, Name, Dose, Time, TimeGroup)
@@ -2532,9 +2530,9 @@ namespace RubberJointsAI.Data
                 cmd.Parameters.AddWithValue("@time", (object?)time ?? DBNull.Value);
                 cmd.Parameters.AddWithValue("@timeGroup", timeGroup);
                 await cmd.ExecuteNonQueryAsync();
-            }
+            } // connection released here
 
-            // Add to user preferences
+            // Add to user preferences (these open their own connections sequentially)
             var prefs = await GetUserPreferencesAsync(userId);
             if (prefs != null)
             {
