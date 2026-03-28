@@ -2154,7 +2154,7 @@ namespace RubberJointsAI.Data
             {
                 string dayType = weeklyPattern[day % 7];
                 string date = start.AddDays(day).ToString("yyyy-MM-dd");
-                var dayExercises = GetExercisesForDayTypeCustom(dayType, selectedIds, allExercises, prefs.HasGym);
+                var dayExercises = GetExercisesForDayTypeCustom(dayType, selectedIds, allExercises, prefs.HasGym, day);
 
                 int sortOrder = 1;
                 foreach (var (exId, category, rx) in dayExercises)
@@ -2248,68 +2248,81 @@ namespace RubberJointsAI.Data
             };
         }
 
+        /// <summary>
+        /// Builds a varied daily workout session from the user's selected exercises.
+        /// Training days: 2-3 warm-up → 4-6 mobility (rotated by dayIndex) → 2-3 recovery
+        /// Rest days: 2-3 light mobility only
+        /// Recovery days: light mobility + recovery tools
+        /// The dayIndex parameter (0-27) ensures variety across the 28-day program.
+        /// </summary>
         private List<(string exId, string category, string? rx)> GetExercisesForDayTypeCustom(
-            string dayType, HashSet<string> selectedIds, Dictionary<string, Exercise> allExercises, bool hasGym)
+            string dayType, HashSet<string> selectedIds, Dictionary<string, Exercise> allExercises, bool hasGym, int dayIndex = 0)
         {
             var result = new List<(string exId, string category, string? rx)>();
 
+            // Helper: get available exercises for a category, respecting home filter
+            List<string> AvailableFor(string category) =>
+                selectedIds.Where(id => allExercises.TryGetValue(id, out var ex) && ex.Category == category
+                    && (hasGym || IsHomeAppropriate(id))).ToList();
+
+            // Helper: pick N items from a list, rotating by dayIndex for variety
+            List<string> PickRotated(List<string> pool, int count, int offset)
+            {
+                if (pool.Count == 0) return new();
+                pool.Sort(); // deterministic order
+                var picked = new List<string>();
+                for (int i = 0; i < Math.Min(count, pool.Count); i++)
+                {
+                    picked.Add(pool[(offset + i) % pool.Count]);
+                }
+                return picked;
+            }
+
             if (dayType == "rest")
             {
-                // Rest: minimal mobility only (home-safe picks)
-                foreach (var id in new[] { "cars-routine", "deep-squat-hold", "quadruped-rocking" })
-                {
-                    if (selectedIds.Contains(id) && allExercises.ContainsKey(id))
-                        result.Add((id, "mobility", allExercises[id].DefaultRx));
-                }
+                // Rest day: 2-3 light mobility exercises, rotated for variety
+                var mobilityPool = AvailableFor("mobility");
+                var picks = PickRotated(mobilityPool, 3, dayIndex);
+                foreach (var id in picks)
+                    result.Add((id, "mobility", allExercises[id].DefaultRx));
                 return result;
             }
 
             if (dayType == "recovery")
             {
-                // Recovery: recovery_tool exercises, filtered for home if no gym
-                foreach (var id in selectedIds)
-                {
-                    if (allExercises.TryGetValue(id, out var ex) && ex.Category == "recovery_tool")
-                    {
-                        // If no gym, skip gym-only recovery tools
-                        if (!hasGym && !IsHomeAppropriate(id)) continue;
-                        result.Add((id, ex.Category, ex.DefaultRx));
-                    }
-                }
-                // For home recovery days, also add a light mobility routine
-                if (!hasGym)
-                {
-                    foreach (var id in new[] { "cars-routine", "open-book", "quadruped-rocking" })
-                    {
-                        if (selectedIds.Contains(id) && allExercises.ContainsKey(id) && !result.Any(r => r.exId == id))
-                            result.Add((id, "mobility", allExercises[id].DefaultRx));
-                    }
-                }
+                // Recovery day: light mobility (2-3) + recovery tools (2-3)
+                var mobilityPool = AvailableFor("mobility");
+                var recoveryPool = AvailableFor("recovery_tool");
+                var mobPicks = PickRotated(mobilityPool, 3, dayIndex);
+                var recPicks = PickRotated(recoveryPool, 3, dayIndex * 2);
+                foreach (var id in mobPicks)
+                    result.Add((id, "mobility", allExercises[id].DefaultRx));
+                foreach (var id in recPicks)
+                    result.Add((id, "recovery_tool", allExercises[id].DefaultRx));
                 return result;
             }
 
-            // Gym or Home training day
-            foreach (var id in selectedIds)
-            {
-                if (!allExercises.TryGetValue(id, out var ex)) continue;
+            // ── Training day (gym or home) ──
+            var warmups = AvailableFor("warmup_tool");
+            var mobility = AvailableFor("mobility");
+            var recovery = AvailableFor("recovery_tool");
 
-                if (dayType == "gym")
-                {
-                    // Gym: warmup + mobility + recovery tools (no strength — this is a joint/mobility program)
-                    if (ex.Category == "warmup_tool" || ex.Category == "mobility" || ex.Category == "recovery_tool")
-                        result.Add((id, ex.Category, ex.DefaultRx));
-                }
-                else if (dayType == "home")
-                {
-                    // Home: mobility only, home-appropriate exercises
-                    if (ex.Category == "mobility" && IsHomeAppropriate(id))
-                        result.Add((id, ex.Category, ex.DefaultRx));
-                }
-            }
+            // Warm-up: pick 2-3, rotated each day
+            var warmupPicks = PickRotated(warmups, warmups.Count >= 3 ? 3 : 2, dayIndex);
+            foreach (var id in warmupPicks)
+                result.Add((id, "warmup_tool", allExercises[id].DefaultRx));
 
-            // Sort: warmup_tool → mobility → recovery_tool
-            var catOrder = new Dictionary<string, int> { ["warmup_tool"] = 0, ["mobility"] = 1, ["recovery_tool"] = 2 };
-            result.Sort((a, b) => catOrder.GetValueOrDefault(a.category, 9).CompareTo(catOrder.GetValueOrDefault(b.category, 9)));
+            // Mobility: pick 4-6 exercises, rotated each day for variety
+            // This gives ~10-20 min of mobility work depending on exercises
+            int mobilityCount = mobility.Count >= 6 ? 6 : Math.Max(4, mobility.Count);
+            var mobilityPicks = PickRotated(mobility, mobilityCount, dayIndex * 3);
+            foreach (var id in mobilityPicks)
+                result.Add((id, "mobility", allExercises[id].DefaultRx));
+
+            // Recovery: pick 2-3, rotated each day
+            var recoveryPicks = PickRotated(recovery, recovery.Count >= 3 ? 3 : 2, dayIndex * 2);
+            foreach (var id in recoveryPicks)
+                result.Add((id, "recovery_tool", allExercises[id].DefaultRx));
 
             return result;
         }
