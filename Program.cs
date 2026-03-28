@@ -370,7 +370,7 @@ app.MapPost("/api/ai/chat", async (HttpContext context, RubberJointsAIRepository
         // 5. Milestones
         var milestones = await repository.GetUserMilestonesAsync(userId);
         int totalMilestones = milestones.Count;
-        int completedMilestones = milestones.Count(m => !string.IsNullOrEmpty(m.CompletedDate));
+        int completedMilestones = milestones.Count(m => !string.IsNullOrEmpty(m.AchievedDate));
 
         // 6. Session history (last 7 days)
         var sessionLogs = await repository.GetSessionLogsAsync(userId);
@@ -415,7 +415,7 @@ app.MapPost("/api/ai/chat", async (HttpContext context, RubberJointsAIRepository
         sb.AppendLine("=== MILESTONES ===");
         foreach (var m in milestones)
         {
-            string status = string.IsNullOrEmpty(m.CompletedDate) ? "Not yet" : $"Done {m.CompletedDate}";
+            string status = string.IsNullOrEmpty(m.AchievedDate) ? "Not yet" : $"Done {m.AchievedDate}";
             sb.AppendLine($"  - {m.Name}: {status}");
         }
         sb.AppendLine($"Milestones completed: {completedMilestones}/{totalMilestones}");
@@ -425,7 +425,7 @@ app.MapPost("/api/ai/chat", async (HttpContext context, RubberJointsAIRepository
         if (recentSessions.Any())
         {
             foreach (var log in recentSessions)
-                sb.AppendLine($"  - {log.Date}: {log.CompletedSteps}/{log.TotalSteps} steps ({(log.TotalSteps > 0 ? (log.CompletedSteps * 100 / log.TotalSteps) : 0)}%)");
+                sb.AppendLine($"  - {log.Date}: {log.StepsDone}/{log.StepsTotal} steps ({(log.StepsTotal > 0 ? (log.StepsDone * 100 / log.StepsTotal) : 0)}%)");
         }
         else
         {
