@@ -2030,7 +2030,7 @@ a.cal-day:active {
 
 .ai-container {
   display: flex;
-  height: calc(100vh - 64px);
+  height: calc(100vh - 56px);
   position: relative;
   overflow: hidden;
   margin: -8px -16px 0;
@@ -2173,7 +2173,7 @@ a.cal-day:active {
   flex: 1;
   display: flex;
   flex-direction: column;
-  height: calc(100vh - 64px);
+  height: calc(100vh - 56px);
   min-width: 0;
 }
 
@@ -2185,6 +2185,39 @@ a.cal-day:active {
   background: var(--s1);
   border-bottom: 1px solid var(--s3);
   flex-shrink: 0;
+}
+
+/* Combined topbar + status banner — saves a full row */
+.ai-topbar-combined {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  background: #fff;
+  border-bottom: 1px solid #eee;
+  flex-shrink: 0;
+}
+.ai-topbar-center {
+  flex: 1;
+  min-width: 0;
+}
+.ai-topbar-week {
+  font-size: 13px;
+  font-weight: 700;
+  color: #333;
+}
+.ai-topbar-bar {
+  height: 3px;
+  background: #eee;
+  border-radius: 2px;
+  margin-top: 4px;
+  overflow: hidden;
+}
+.ai-topbar-fill {
+  height: 100%;
+  background: #34c759;
+  border-radius: 2px;
+  transition: width 0.5s ease;
 }
 
 .ai-menu-btn {
@@ -2289,12 +2322,15 @@ a.cal-day:active {
 
 /* Compact info card — 3 lines max */
 .ai-info-compact {
-  padding: 10px 14px;
+  padding: 8px 12px;
 }
 .ai-info-compact .ai-info-nugget {
   font-size: 12.5px;
-  padding: 2px 0;
+  padding: 1px 0;
   line-height: 1.4;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 /* --- Messages --- */
@@ -2421,10 +2457,10 @@ a.cal-day:active {
   color: var(--tx2);
 }
 
-/* --- Suggestion chips (pinned above input, always visible) --- */
+/* --- Suggestion chips (pinned above input, single row) --- */
 .ai-suggestions {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   gap: 6px;
   padding: 6px 12px 4px;
   flex-shrink: 0;
@@ -2567,6 +2603,43 @@ a.cal-day:active {
   font-size: 12px;
   opacity: 0.75;
   font-weight: 600;
+}
+
+/* Slim joke — one-line bar */
+.ai-joke-slim {
+  background: #fffbf0;
+  padding: 8px 16px;
+  text-align: center;
+  flex-shrink: 0;
+  border-bottom: 1px solid #f0e8d8;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.ai-joke-slim .ai-joke-text {
+  font-size: 13px;
+  font-style: italic;
+  color: #6b5b3a;
+  font-weight: 500;
+}
+
+/* Slim disclaimer */
+.ai-disclaimer-slim {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 6px;
+  padding: 6px 12px;
+  background: #fff8e1;
+  border: 1px solid #ffe082;
+  border-radius: 8px;
+  font-size: 11px;
+  line-height: 1.3;
+  color: #8d6e00;
+}
+.ai-disclaimer-slim svg {
+  flex-shrink: 0;
+  color: #e65100;
 }
 
 /* --- Today's Info Card --- */

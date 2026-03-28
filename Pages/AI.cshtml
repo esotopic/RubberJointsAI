@@ -2,6 +2,7 @@
 @model RubberJointsAI.Pages.AIModel
 @{
     Layout = "_Layout";
+    ViewData["HideUserBar"] = true;
 }
 
 <div class="ai-container">
@@ -32,39 +33,24 @@
 
     <!-- Main Chat Area -->
     <div class="ai-main">
-        <!-- Top bar with menu toggle -->
-        <div class="ai-topbar">
+        <!-- Combined topbar + status in one row -->
+        @{
+            int progressPct = Model.TotalWeeks > 0 ? (int)((Model.Week - 1) * 100.0 / Model.TotalWeeks) : 0;
+            if (progressPct > 100) progressPct = 100;
+        }
+        <div class="ai-topbar-combined">
             <button class="ai-menu-btn" id="openSidebar">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <line x1="3" y1="6" x2="21" y2="6"></line>
                     <line x1="3" y1="12" x2="21" y2="12"></line>
                     <line x1="3" y1="18" x2="21" y2="18"></line>
                 </svg>
             </button>
-            <span class="ai-topbar-title">AI Coach</span>
-            <div style="width:36px;"></div>
-        </div>
-
-        <!-- Program status banner (server-rendered, no AI call) -->
-        @{
-            string sessionLabel = Model.DayType switch {
-                "gym" => "Gym Session",
-                "home" => "Home Session",
-                "recovery" => "Recovery",
-                "rest" => "Rest Day",
-                _ => "Today"
-            };
-            int progressPct = Model.TotalWeeks > 0 ? (int)((Model.Week - 1) * 100.0 / Model.TotalWeeks) : 0;
-            if (progressPct > 100) progressPct = 100;
-        }
-        <div class="ai-status-banner ai-status-banner-slim">
-            <div class="ai-status-banner-top">
-                <div class="ai-status-banner-title">Week @Model.Week of @Model.TotalWeeks</div>
-                <div class="ai-status-banner-phase">@Model.Phase Phase</div>
+            <div class="ai-topbar-center">
+                <span class="ai-topbar-week">Week @Model.Week of @Model.TotalWeeks</span>
+                <div class="ai-topbar-bar"><div class="ai-topbar-fill" style="width:@(progressPct)%"></div></div>
             </div>
-            <div class="ai-status-banner-bar">
-                <div class="ai-status-banner-fill" style="width:@(progressPct)%"></div>
-            </div>
+            <div class="ai-status-banner-phase">@Model.Phase</div>
         </div>
 
         <!-- START TRAINING — fixed right below the status bar -->
@@ -84,12 +70,12 @@
 
             <!-- Today's Quick Glance — compact 3-line summary -->
             <div class="ai-info-card ai-info-compact">
-                <div class="ai-info-nugget">💪 @Model.ExercisesDone/@Model.ExercisesTotal exercises done · @Model.SupplementsDone/@Model.SupplementsTotal supplements · Tap <strong>Today</strong> for details</div>
+                <div class="ai-info-nugget">💪 @Model.ExercisesDone/@Model.ExercisesTotal exercises · @Model.SupplementsDone/@Model.SupplementsTotal supplements</div>
                 @if (Model.NextMilestone != null)
                 {
-                    <div class="ai-info-nugget">🎯 Next milestone: <strong>@Model.NextMilestone</strong> · @Model.DaysRemaining days left</div>
+                    <div class="ai-info-nugget">🎯 Next: <strong>@Model.NextMilestone</strong> · @Model.DaysRemaining days left</div>
                 }
-                <div class="ai-info-nugget">📊 Check the <strong>Progress</strong> tab to track your fitness journey</div>
+                <div class="ai-info-nugget">📊 Check <strong>Progress</strong> tab to track your journey</div>
             </div>
 
             <!-- AI intro -->
@@ -100,34 +86,25 @@
                     </svg>
                 </div>
                 <div class="ai-bubble ai-bubble-assistant">
-                    <p>Got questions? Tap a quick option below or type anything about your program. Don't forget to tap exercises in the <strong>Today</strong> tab for descriptions, and visit <strong>Progress</strong> to check off your milestones!</p>
+                    <p>Tap a quick option or type anything about your program!</p>
                 </div>
             </div>
         </div>
 
-        <!-- Quick action chips — always visible, pinned above input -->
+        <!-- 3 quick chips — one line -->
         <div class="ai-suggestions" id="aiSuggestions">
             <button class="ai-chip" data-prompt="Give me a status update on where I am in my program — what week, what I've completed today, and how my overall progress looks.">
-                My status update
+                My status
             </button>
             <button class="ai-chip" data-prompt="What should I focus on in today's session? Any tips for getting the most out of my exercises?">
-                Focus for today
+                Today's focus
             </button>
             <button class="ai-chip" data-prompt="How is my progress this week compared to what's expected? Am I on track?">
                 Weekly progress
             </button>
-            <button class="ai-chip" data-prompt="I'm feeling sore today. Can you suggest any adjustments to my plan or recovery tips?">
-                I'm feeling sore
-            </button>
-            <button class="ai-chip" data-prompt="Tell me about my milestones — which ones have I hit and what should I aim for next?">
-                My milestones
-            </button>
-            <button class="ai-chip" data-prompt="What supplements am I taking and when should I take them? Any tips?">
-                Supplement guide
-            </button>
         </div>
 
-        <!-- Input area -->
+        <!-- Input + disclaimer — fixed bottom -->
         <div class="ai-input-area">
             <div class="ai-input-wrapper">
                 <textarea class="ai-input" id="aiInput" placeholder="Ask your AI coach..." rows="1"></textarea>
@@ -138,14 +115,13 @@
                     </svg>
                 </button>
             </div>
-            <!-- PROMINENT DISCLAIMER -->
-            <div class="ai-disclaimer-prominent">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+            <div class="ai-disclaimer-slim">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
                     <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"></path>
                     <line x1="12" y1="9" x2="12" y2="13"></line>
                     <line x1="12" y1="17" x2="12.01" y2="17"></line>
                 </svg>
-                <span><strong>Not medical advice.</strong> This is an AI assistant — not a doctor, trainer, or nutritionist. Always consult a professional before making health decisions.</span>
+                <span><strong>Not medical advice.</strong> Always consult a professional.</span>
             </div>
         </div>
     </div>

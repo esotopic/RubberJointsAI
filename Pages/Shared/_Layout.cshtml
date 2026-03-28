@@ -12,7 +12,7 @@
 </head>
 <body>
     <main class="page-container">
-        @if (User.Identity?.IsAuthenticated == true)
+        @if (User.Identity?.IsAuthenticated == true && ViewData["HideUserBar"] == null)
         {
             <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 16px 0;">
                 <span style="color:var(--t2);font-size:0.8rem;">@User.Identity.Name</span>
