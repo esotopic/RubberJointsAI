@@ -76,6 +76,18 @@ app.UseAuthorization();
     }
 }
 
+// Redirect bare "/" to "/AI" for authenticated users.
+// The Today page is accessed via "/Index" (nav links, date links all use /Index).
+app.Use(async (context, next) =>
+{
+    if (context.Request.Path == "/" && context.User.Identity?.IsAuthenticated == true)
+    {
+        context.Response.Redirect("/AI");
+        return;
+    }
+    await next();
+});
+
 app.MapRazorPages();
 
 // ── Minimal API endpoints (bypass Razor Pages routing for reliable JSON responses) ──

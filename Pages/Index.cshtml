@@ -45,7 +45,7 @@
 
     <!-- Day Navigation Header -->
     <section class="day-nav">
-        <a href="/?date=@Model.ViewModel.PrevDate" class="day-nav-arrow">&lsaquo;</a>
+        <a href="/Index?date=@Model.ViewModel.PrevDate" class="day-nav-arrow">&lsaquo;</a>
         <div class="day-nav-center">
             <div class="day-nav-label">
                 @if (isToday)
@@ -59,10 +59,10 @@
             </div>
             @if (!isToday)
             {
-                <a href="/" class="day-nav-today-link">Back to Today</a>
+                <a href="/Index" class="day-nav-today-link">Back to Today</a>
             }
         </div>
-        <a href="/?date=@Model.ViewModel.NextDate" class="day-nav-arrow">&rsaquo;</a>
+        <a href="/Index?date=@Model.ViewModel.NextDate" class="day-nav-arrow">&rsaquo;</a>
     </section>
 
     <!-- Activity Summary -->
@@ -141,7 +141,7 @@
             var dayLabel = day.ToString("ddd").Substring(0, 3).ToUpper();
             var dayNum = day.Day;
             var dateParam = day.ToString("yyyy-MM-dd");
-            var dayHref = day.Date == actualToday.Date ? "/" : $"/?date={dateParam}";
+            var dayHref = day.Date == actualToday.Date ? "/Index" : $"/Index?date={dateParam}";
             <a href="@dayHref" class="week-day @(isSelected ? "selected" : "") @(isActualToday ? "today" : "") @(isPast ? "past" : "")" style="text-decoration:none;color:inherit;">
                 <span class="week-day-label">@dayLabel</span>
                 <span class="week-day-num">@dayNum</span>
@@ -685,10 +685,10 @@ document.addEventListener('touchend', e => {
     if (Math.abs(diff) > 80) {
         if (diff > 0) {
             // Swipe left → next day
-            window.location.href = '/?date=@Model.ViewModel.NextDate';
+            window.location.href = '/Index?date=@Model.ViewModel.NextDate';
         } else {
             // Swipe right → prev day
-            window.location.href = '/?date=@Model.ViewModel.PrevDate';
+            window.location.href = '/Index?date=@Model.ViewModel.PrevDate';
         }
     }
 }, { passive: true });
