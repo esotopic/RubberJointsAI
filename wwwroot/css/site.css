@@ -2063,6 +2063,7 @@ a.cal-day:active {
 .ai-container {
   display: flex;
   height: calc(100vh - 56px);
+  height: calc(100dvh - 56px);
   position: relative;
   overflow: hidden;
   margin: -8px -16px 0;
@@ -2206,6 +2207,7 @@ a.cal-day:active {
   display: flex;
   flex-direction: column;
   height: calc(100vh - 56px);
+  height: calc(100dvh - 56px);
   min-width: 0;
 }
 

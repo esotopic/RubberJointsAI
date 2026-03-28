@@ -5,6 +5,11 @@
     ViewData["HideUserBar"] = true;
 }
 
+<style>
+    /* Prevent body/html scrolling on AI page — everything stays in fixed containers */
+    html, body { overflow: hidden !important; height: 100% !important; }
+</style>
+
 <div class="ai-container">
     <!-- Side Panel (conversation history) -->
     <div class="ai-sidebar" id="aiSidebar">
@@ -380,4 +385,14 @@
 
     // === Prefetch Today page data in background to warm server cache ===
     fetch('/api/today-prefetch', { credentials: 'same-origin' }).catch(() => {});
+
+    // === Mobile Safari viewport fix: use real visible height ===
+    function setRealHeight() {
+        const navBar = 56; // bottom nav height
+        const h = window.innerHeight - navBar;
+        document.querySelector('.ai-container').style.height = h + 'px';
+        document.querySelector('.ai-main').style.height = h + 'px';
+    }
+    setRealHeight();
+    window.addEventListener('resize', setRealHeight);
 </script>
