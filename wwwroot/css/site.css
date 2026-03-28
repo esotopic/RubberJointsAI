@@ -2257,6 +2257,21 @@ a.cal-day:active {
   opacity: 0.7;
 }
 
+/* Slim banner — just week bar, no stats grid */
+.ai-status-banner-slim {
+  padding: 10px 16px 8px;
+}
+
+/* Compact info card — 3 lines max */
+.ai-info-compact {
+  padding: 10px 14px;
+}
+.ai-info-compact .ai-info-nugget {
+  font-size: 12.5px;
+  padding: 2px 0;
+  line-height: 1.4;
+}
+
 /* --- Messages --- */
 .ai-messages {
   flex: 1;

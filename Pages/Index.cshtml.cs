@@ -21,10 +21,16 @@ namespace RubberJointsAI.Pages
             _repository = repository;
         }
 
+        private static DateTime GetPacificNow()
+        {
+            var pst = TimeZoneInfo.FindSystemTimeZoneById("America/Los_Angeles");
+            return TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, pst);
+        }
+
         public async Task OnGetAsync()
         {
             string userId = User.Identity?.Name ?? "default";
-            var actualToday = DateTime.UtcNow;
+            var actualToday = GetPacificNow();
             string todayDateStr = actualToday.ToString("yyyy-MM-dd");
 
             // Parse selected date from query param, default to today

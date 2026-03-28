@@ -57,7 +57,7 @@
             int progressPct = Model.TotalWeeks > 0 ? (int)((Model.Week - 1) * 100.0 / Model.TotalWeeks) : 0;
             if (progressPct > 100) progressPct = 100;
         }
-        <div class="ai-status-banner">
+        <div class="ai-status-banner ai-status-banner-slim">
             <div class="ai-status-banner-top">
                 <div class="ai-status-banner-title">Week @Model.Week of @Model.TotalWeeks</div>
                 <div class="ai-status-banner-phase">@Model.Phase Phase</div>
@@ -65,28 +65,10 @@
             <div class="ai-status-banner-bar">
                 <div class="ai-status-banner-fill" style="width:@(progressPct)%"></div>
             </div>
-            <div class="ai-status-banner-grid">
-                <div class="ai-status-banner-stat">
-                    <span class="ai-stat-number">@Model.ExercisesDone/@Model.ExercisesTotal</span>
-                    <span class="ai-stat-label">Exercises</span>
-                </div>
-                <div class="ai-status-banner-stat">
-                    <span class="ai-stat-number">@Model.SupplementsDone/@Model.SupplementsTotal</span>
-                    <span class="ai-stat-label">Supplements</span>
-                </div>
-                <div class="ai-status-banner-stat">
-                    <span class="ai-stat-number">@Model.MilestonesDone/@Model.MilestonesTotal</span>
-                    <span class="ai-stat-label">Milestones</span>
-                </div>
-                <div class="ai-status-banner-stat">
-                    <span class="ai-stat-number">@sessionLabel</span>
-                    <span class="ai-stat-label">Today</span>
-                </div>
-            </div>
         </div>
 
         <!-- START TRAINING — fixed right below the status bar -->
-        <a href="/" class="ai-start-training-btn">
+        <a href="/Index" class="ai-start-training-btn">
             🔥 START TRAINING 💪
         </a>
 
@@ -100,61 +82,14 @@
         <!-- Messages area (scrollable) -->
         <div class="ai-messages" id="aiMessages">
 
-            <!-- Today's Quick Glance (server-rendered info) -->
-            <div class="ai-info-card">
-                <div class="ai-info-header">
-                    <span class="ai-info-title">👋 Hey @User.Identity?.Name! Here's your day at a glance</span>
-                </div>
-
-                @if (Model.TodaysExercises.Any())
+            <!-- Today's Quick Glance — compact 3-line summary -->
+            <div class="ai-info-card ai-info-compact">
+                <div class="ai-info-nugget">💪 @Model.ExercisesDone/@Model.ExercisesTotal exercises done · @Model.SupplementsDone/@Model.SupplementsTotal supplements · Tap <strong>Today</strong> for details</div>
+                @if (Model.NextMilestone != null)
                 {
-                    <div class="ai-info-section">
-                        <div class="ai-info-section-title">Today's Exercises</div>
-                        @foreach (var ex in Model.TodaysExercises.Take(6))
-                        {
-                            <div class="ai-exercise-row @(ex.Done ? "done" : "")">
-                                <span class="ai-exercise-check">@(ex.Done ? "✅" : "⬜")</span>
-                                <span class="ai-exercise-name">@ex.Name</span>
-                                <span class="ai-exercise-rx">@ex.Rx</span>
-                            </div>
-                        }
-                        @if (Model.TodaysExercises.Count > 6)
-                        {
-                            <div class="ai-exercise-more">+ @(Model.TodaysExercises.Count - 6) more — check your Today tab</div>
-                        }
-                    </div>
+                    <div class="ai-info-nugget">🎯 Next milestone: <strong>@Model.NextMilestone</strong> · @Model.DaysRemaining days left</div>
                 }
-
-                @if (Model.UpcomingSupplements.Any())
-                {
-                    <div class="ai-info-section">
-                        <div class="ai-info-section-title">💊 Supplements Still Due</div>
-                        @foreach (var sup in Model.UpcomingSupplements)
-                        {
-                            <div class="ai-supplement-row">@sup</div>
-                        }
-                    </div>
-                }
-
-                <div class="ai-info-footer">
-                    @if (Model.NextMilestone != null)
-                    {
-                        <div class="ai-info-nugget">🎯 Next milestone: <strong>@Model.NextMilestone</strong></div>
-                    }
-                    @if (Model.DaysRemaining > 0)
-                    {
-                        <div class="ai-info-nugget">📅 @Model.DaysRemaining days remaining in your program</div>
-                    }
-                    @if (Model.CompletedSessions > 0)
-                    {
-                        <div class="ai-info-nugget">🔥 @Model.CompletedSessions sessions completed so far — keep it up!</div>
-                    }
-                </div>
-
-                <div class="ai-info-tips">
-                    <div class="ai-tip">👆 <strong>Tap any exercise</strong> in the Today tab to see how it's done</div>
-                    <div class="ai-tip">📊 Check the <strong>Progress</strong> tab to track milestones & check off your journey</div>
-                </div>
+                <div class="ai-info-nugget">📊 Check the <strong>Progress</strong> tab to track your fitness journey</div>
             </div>
 
             <!-- AI intro -->
