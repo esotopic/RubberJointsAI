@@ -276,36 +276,123 @@ function renderUIComponent(container, comp, step) {
             card.className = 'ui-choice-card';
             card.innerHTML = `<span class="choice-label">${opt.label}</span>${opt.description ? `<span class="choice-desc">${opt.description}</span>` : ''}`;
             card.addEventListener('click', () => {
-                // Disable all cards
                 div.querySelectorAll('.ui-choice-card').forEach(c => { c.style.pointerEvents='none'; c.style.opacity='0.5'; });
                 card.style.opacity='1'; card.style.borderColor='var(--acc)';
-
                 if (comp.id === 'gym_access') {
                     sendMessage(opt.label, { step: 0, data: { has_gym: opt.value } });
-                } else if (comp.id === 'days_per_week') {
-                    sendMessage(opt.label, { step: 1, data: { days_per_week: opt.value } });
                 }
             });
             div.appendChild(card);
         });
         container.appendChild(div);
-
-        // Add quick-start skip button on days picker (step 1)
-        if (comp.id === 'days_per_week') {
-            const skipDiv = document.createElement('div');
-            skipDiv.style.cssText = 'text-align:center;margin-top:14px;';
-            skipDiv.innerHTML = `
-                <div style="font-size:12px;color:var(--tx3);margin-bottom:6px;">— or —</div>
-                <button class="btn-quick-start" style="background:linear-gradient(135deg,#6366f1,#8b5cf6);color:#fff;border:none;border-radius:12px;padding:12px 24px;font-size:14px;font-weight:600;cursor:pointer;width:90%;max-width:320px;">⚡ Skip — Just Build My Plan</button>
-                <div style="font-size:11px;color:var(--tx3);margin-top:5px;">4 days/week · all exercises · customize anytime</div>
-            `;
-            skipDiv.querySelector('.btn-quick-start').addEventListener('click', () => {
-                skipDiv.style.pointerEvents='none'; skipDiv.style.opacity='0.5';
-                div.querySelectorAll('.ui-choice-card').forEach(c => { c.style.pointerEvents='none'; c.style.opacity='0.5'; });
-                sendMessage('⚡ Quick Start — build my plan!', { step: 1, data: { quick_start: true } });
+    }
+    else if (comp.type === 'gym_days_picker') {
+        // Gym users: clickable day-of-week toggles
+        const div = document.createElement('div');
+        div.style.cssText = 'text-align:center;padding:8px 0;';
+        const selectedDays = new Set();
+        const daysRow = document.createElement('div');
+        daysRow.style.cssText = 'display:flex;justify-content:center;gap:8px;flex-wrap:wrap;margin-bottom:14px;';
+        comp.days.forEach(day => {
+            const btn = document.createElement('button');
+            btn.textContent = day.label;
+            btn.style.cssText = 'width:44px;height:44px;border-radius:50%;border:2px solid var(--brd);background:var(--bg2);color:var(--tx1);font-size:14px;font-weight:600;cursor:pointer;transition:all 0.2s;';
+            btn.addEventListener('click', () => {
+                if (selectedDays.has(day.id)) {
+                    selectedDays.delete(day.id);
+                    btn.style.background = 'var(--bg2)';
+                    btn.style.borderColor = 'var(--brd)';
+                    btn.style.color = 'var(--tx1)';
+                } else {
+                    selectedDays.add(day.id);
+                    btn.style.background = 'var(--acc)';
+                    btn.style.borderColor = 'var(--acc)';
+                    btn.style.color = '#fff';
+                }
+                genBtn.disabled = selectedDays.size === 0;
+                custBtn.disabled = selectedDays.size === 0;
+                countLabel.textContent = selectedDays.size > 0 ? `${selectedDays.size} day${selectedDays.size > 1 ? 's' : ''} selected` : 'Tap your gym days';
             });
-            container.appendChild(skipDiv);
-        }
+            daysRow.appendChild(btn);
+        });
+        div.appendChild(daysRow);
+        const countLabel = document.createElement('div');
+        countLabel.textContent = 'Tap your gym days';
+        countLabel.style.cssText = 'font-size:12px;color:var(--tx3);margin-bottom:12px;';
+        div.appendChild(countLabel);
+
+        // Generate Plan button
+        const genBtn = document.createElement('button');
+        genBtn.textContent = '⚡ Generate My Plan';
+        genBtn.disabled = true;
+        genBtn.style.cssText = 'background:linear-gradient(135deg,#6366f1,#8b5cf6);color:#fff;border:none;border-radius:12px;padding:12px 20px;font-size:14px;font-weight:600;cursor:pointer;width:90%;max-width:320px;opacity:0.5;transition:opacity 0.2s;';
+        genBtn.addEventListener('mouseenter', () => { if (!genBtn.disabled) genBtn.style.opacity='0.9'; });
+        genBtn.addEventListener('mouseleave', () => { genBtn.style.opacity = genBtn.disabled ? '0.5' : '1'; });
+        genBtn.addEventListener('click', () => {
+            div.style.pointerEvents='none'; div.style.opacity='0.6';
+            sendMessage(`⚡ Generate plan for ${[...selectedDays].join(', ')}`, { step: 1, data: { gym_days: [...selectedDays], quick_start: true } });
+        });
+        div.appendChild(genBtn);
+
+        // Or divider + Customize button
+        const orDiv = document.createElement('div');
+        orDiv.style.cssText = 'font-size:12px;color:var(--tx3);margin:10px 0 8px;';
+        orDiv.textContent = '— or —';
+        div.appendChild(orDiv);
+
+        const custBtn = document.createElement('button');
+        custBtn.textContent = '🎨 Customize My Exercises';
+        custBtn.disabled = true;
+        custBtn.style.cssText = 'background:transparent;color:var(--acc);border:2px solid var(--acc);border-radius:12px;padding:10px 20px;font-size:13px;font-weight:600;cursor:pointer;width:90%;max-width:320px;opacity:0.5;transition:opacity 0.2s;';
+        custBtn.addEventListener('click', () => {
+            div.style.pointerEvents='none'; div.style.opacity='0.6';
+            sendMessage(`Customize — gym days: ${[...selectedDays].join(', ')}`, { step: 1, data: { gym_days: [...selectedDays] } });
+        });
+        div.appendChild(custBtn);
+        const custNote = document.createElement('div');
+        custNote.style.cssText = 'font-size:11px;color:var(--tx3);margin-top:5px;';
+        custNote.textContent = 'Pick warmup, mobility, recovery & supplements';
+        div.appendChild(custNote);
+
+        container.appendChild(div);
+    }
+    else if (comp.type === 'plan_or_customize') {
+        // Home users: generate plan or customize
+        const div = document.createElement('div');
+        div.style.cssText = 'text-align:center;padding:8px 0;';
+
+        const genBtn = document.createElement('button');
+        genBtn.textContent = '⚡ Generate My Plan';
+        genBtn.style.cssText = 'background:linear-gradient(135deg,#6366f1,#8b5cf6);color:#fff;border:none;border-radius:12px;padding:14px 24px;font-size:15px;font-weight:600;cursor:pointer;width:90%;max-width:320px;';
+        genBtn.addEventListener('click', () => {
+            div.style.pointerEvents='none'; div.style.opacity='0.6';
+            sendMessage('⚡ Generate my plan!', { step: 1, data: { days_per_week: 4, quick_start: true } });
+        });
+        div.appendChild(genBtn);
+        const genNote = document.createElement('div');
+        genNote.style.cssText = 'font-size:11px;color:var(--tx3);margin:5px 0 14px;';
+        genNote.textContent = '4 days/week · all home exercises · customize anytime';
+        div.appendChild(genNote);
+
+        const orDiv = document.createElement('div');
+        orDiv.style.cssText = 'font-size:12px;color:var(--tx3);margin-bottom:10px;';
+        orDiv.textContent = '— or —';
+        div.appendChild(orDiv);
+
+        const custBtn = document.createElement('button');
+        custBtn.textContent = '🎨 Customize My Exercises';
+        custBtn.style.cssText = 'background:transparent;color:var(--acc);border:2px solid var(--acc);border-radius:12px;padding:12px 20px;font-size:13px;font-weight:600;cursor:pointer;width:90%;max-width:320px;';
+        custBtn.addEventListener('click', () => {
+            div.style.pointerEvents='none'; div.style.opacity='0.6';
+            sendMessage('Customize my plan', { step: 1, data: { days_per_week: 4 } });
+        });
+        div.appendChild(custBtn);
+        const custNote = document.createElement('div');
+        custNote.style.cssText = 'font-size:11px;color:var(--tx3);margin-top:5px;';
+        custNote.textContent = 'Pick warmup, mobility, recovery & supplements';
+        div.appendChild(custNote);
+
+        container.appendChild(div);
     }
     else if (comp.type === 'exercise_picker') {
         const div = document.createElement('div');

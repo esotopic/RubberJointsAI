@@ -492,24 +492,40 @@ app.MapPost("/api/ai/chat", async (HttpContext context, RubberJointsAIRepository
                         prefs.HasGym = selectionData.GetProperty("has_gym").GetBoolean();
                         prefs.OnboardingStep = 1;
                         break;
-                    case 1: // days selection
+                    case 1: // days/schedule selection OR quick start
+                        // Parse gym days if provided (gym users select specific days)
+                        int selectedDayCount = 4; // default
+                        string daysSummary = "4 days/week";
+                        if (selectionData.TryGetProperty("gym_days", out var gymDaysEl))
+                        {
+                            var daysList = new List<string>();
+                            foreach (var d in gymDaysEl.EnumerateArray()) daysList.Add(d.GetString() ?? "");
+                            selectedDayCount = Math.Max(daysList.Count, 2);
+                            daysSummary = string.Join(", ", daysList);
+                        }
+                        else if (selectionData.TryGetProperty("days_per_week", out var dpw))
+                        {
+                            selectedDayCount = dpw.GetInt32();
+                        }
+
                         // Check if user wants to skip directly to planning
                         if (selectionData.TryGetProperty("quick_start", out var qs) && qs.GetBoolean())
                         {
-                            // Auto-select all exercises appropriate for gym/home
                             var autoExercises = await repository.GetAllExercisesAsync();
                             var autoIds = autoExercises.Select(e => e.Id).ToList();
                             prefs.SelectedExercises = string.Join(",", autoIds);
-                            prefs.DaysPerWeek = 4;
-                            prefs.SelectedSupplements = ""; // no supplements by default
+                            prefs.DaysPerWeek = selectedDayCount;
+                            prefs.SelectedSupplements = "";
                             prefs.OnboardingStep = 7;
                             await repository.SaveUserPreferencesAsync(prefs);
                             await repository.GenerateCustomPlanAsync(userId, prefs);
-                            var qsPrompt = $"You are the AI Coach for a hilariously serious joint & mobility workout program — because your joints called and they want better treatment. The user '{userId}' just did a quick setup! Their plan has been auto-generated: 4 days/week, {(prefs.HasGym ? "gym access — we loaded up all the gym goodies" : "home only — everything you need, no gym required")}, all available exercises included. Celebrate! Keep it to 2-3 sentences. Make a funny joint/mobility joke. Tell them to tap START TRAINING to begin. Mention they can customize exercises and supplements anytime from the Workout tab or by chatting with you.";
+                            var qsPrompt = $"You are the AI Coach for a hilariously serious joint & mobility workout program — because your joints called and they want better treatment. The user '{userId}' just did a quick setup! Their plan has been auto-generated: {selectedDayCount} days/week ({daysSummary}), {(prefs.HasGym ? "gym access — we loaded up all the gym goodies" : "home only — everything you need, no gym required")}, all available exercises included. Celebrate! Keep it to 2-3 sentences. Make a funny joint/mobility joke. Tell them to tap START TRAINING to begin. Mention they can customize exercises and supplements anytime from the Workout tab or by chatting with you.";
                             var qsText = await CallClaudeAsync(httpFactory, apiKey, qsPrompt, "Quick start!", history);
                             return Results.Json(new { success = true, response = qsText, onboarding_step = 7, onboarding_complete = true });
                         }
-                        prefs.DaysPerWeek = selectionData.GetProperty("days_per_week").GetInt32();
+
+                        // Normal customize path
+                        prefs.DaysPerWeek = selectedDayCount;
                         prefs.OnboardingStep = 2;
                         break;
                     case 2: // warmup exercises
@@ -565,7 +581,9 @@ app.MapPost("/api/ai/chat", async (HttpContext context, RubberJointsAIRepository
             string stepContext = step switch
             {
                 0 => "Welcome the user! This is their very first time. Ask if they have access to a gym. Keep it to 2-3 sentences max. Make a funny joint/mobility joke.",
-                1 => $"User has gym access: {prefs.HasGym}. Now ask how many days per week they want to train (2-6). Keep it brief, 2-3 sentences. Drop a joke.",
+                1 => prefs.HasGym
+                    ? "User has gym access. Now ask which days of the week they go to the gym — the app will show clickable day buttons below. Keep it to 2 sentences. Make a joint joke."
+                    : "User works out at home (no gym). The app will show options to generate a plan right away or customize exercises. Keep it to 2 sentences. Say something encouraging about home workouts being great for joints.",
                 2 => $"User trains {prefs.DaysPerWeek} days/week with {(prefs.HasGym ? "gym access" : "home only")}. Introduce warm-up exercises. Say something fun about warming up. The app will show exercise cards below — just introduce the step in 2 sentences.",
                 3 => "Now introduce mobility exercises. These are the CORE of the program. Get them excited about improving their range of motion. 2-3 sentences, be fun.",
                 4 => $"Now introduce recovery tools{(prefs.HasGym ? " (they have gym access so they may have saunas, compression boots etc)" : " (home-based recovery)")}. Quick and fun, 2 sentences.",
@@ -601,13 +619,24 @@ RULES:
                     }};
                     break;
                 case 1:
-                    uiComponent = new { type = "choice", id = "days_per_week", options = new object[] {
-                        new { id = "2", label = "2 Days", value = 2 },
-                        new { id = "3", label = "3 Days", value = 3 },
-                        new { id = "4", label = "4 Days", value = 4 },
-                        new { id = "5", label = "5 Days", value = 5 },
-                        new { id = "6", label = "6 Days", value = 6 }
-                    }};
+                    if (prefs.HasGym)
+                    {
+                        // Gym users: pick specific days they go to the gym
+                        uiComponent = new { type = "gym_days_picker", id = "gym_days", days = new[] {
+                            new { id = "Mon", label = "M" },
+                            new { id = "Tue", label = "T" },
+                            new { id = "Wed", label = "W" },
+                            new { id = "Thu", label = "Th" },
+                            new { id = "Fri", label = "F" },
+                            new { id = "Sat", label = "S" },
+                            new { id = "Sun", label = "Su" }
+                        }};
+                    }
+                    else
+                    {
+                        // Home users: generate plan now or customize
+                        uiComponent = new { type = "plan_or_customize", id = "home_choice" };
+                    }
                     break;
                 case 2: // warmup exercises
                     uiComponent = new { type = "exercise_picker", id = "warmup", category = "Warm-Up",
