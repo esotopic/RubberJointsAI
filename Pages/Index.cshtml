@@ -168,11 +168,13 @@
         var catSteps = stepsByCategory.ContainsKey(cat) ? stepsByCategory[cat] : new List<RubberJointsAI.Models.TodayStep>();
         var catDone = catSteps.Count(s => s.Checked);
         var catTotal = catSteps.Count;
+        var sectionLabel = GetSectionLabel(cat);
+        var exerciseNames = string.Join(", ", catSteps.Select(s => s.Exercise.Name));
 
         <div class="session-group" data-category="@cat">
             <div class="session-group-header">
                 <span class="dot" style="background-color: @GetCategoryColor(cat);"></span>
-                <span>@GetSectionLabel(cat)</span>
+                <span>@sectionLabel</span>
                 <span class="group-progress">@catDone/@catTotal</span>
                 @if (!isFuture)
                 {
@@ -230,6 +232,15 @@
                         Watch Demo
                     </a>
                 </div>
+            }
+            @if (catTotal > 0)
+            {
+                <a href="/AI?prompt=@Uri.EscapeDataString($"Explain why these {sectionLabel.ToLower()} exercises were chosen for today: {exerciseNames}. Why are they in my plan today? Were any of them selected because I previously skipped them? Also, remind me that I can tap on each exercise name in the Today tab for a detailed description and demo video.")" class="ask-ai-section-btn">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M12 2L9 7l-5 1 3.5 3.5L7 17l5-2.5L17 17l-.5-5.5L20 8l-5-1z"></path>
+                    </svg>
+                    Ask AI about @sectionLabel
+                </a>
             }
         </div>
     }
@@ -289,6 +300,16 @@
                 </div>
             }
         </div>
+        @if (suppsTotal > 0)
+        {
+            var suppNames = string.Join(", ", Model.ViewModel.Supplements.Select(s => $"{s.Supplement.Name} ({s.Supplement.Dose})"));
+            <a href="/AI?prompt=@Uri.EscapeDataString($"Tell me about my supplement plan for today. I'm taking: {suppNames}. Why are these supplements important for my mobility program? When should I take each one, and are there any tips for getting the most benefit?")" class="ask-ai-section-btn">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M12 2L9 7l-5 1 3.5 3.5L7 17l5-2.5L17 17l-.5-5.5L20 8l-5-1z"></path>
+                </svg>
+                Ask AI about Vitamins
+            </a>
+        }
     </section>
 
     <!-- Exercise Picker Modal -->

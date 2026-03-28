@@ -376,4 +376,20 @@
         div.textContent = text;
         return div.innerHTML;
     }
+
+    // === Auto-send prompt from query parameter (e.g., from "Ask AI" buttons on Today page) ===
+    (function() {
+        const params = new URLSearchParams(window.location.search);
+        const autoPrompt = params.get('prompt');
+        if (autoPrompt && autoPrompt.trim()) {
+            // Clean up the URL so refreshing doesn't re-send
+            window.history.replaceState({}, '', '/AI');
+            // Set the input and send after a short delay to let page initialize
+            setTimeout(() => {
+                input.value = autoPrompt.trim();
+                input.dispatchEvent(new Event('input'));
+                sendMessage();
+            }, 300);
+        }
+    })();
 </script>

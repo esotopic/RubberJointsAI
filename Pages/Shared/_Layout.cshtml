@@ -30,7 +30,7 @@
             </svg>
             <span class="nav-label">AI</span>
         </a>
-        <a href="/" class="nav-item @(ViewContext.HttpContext.Request.Path == "/" ? "active" : "")" data-path="/">
+        <a href="/Index" class="nav-item @(ViewContext.HttpContext.Request.Path == "/Index" || ViewContext.HttpContext.Request.Path == "/" ? "active" : "")" data-path="/Index">
             <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <circle cx="12" cy="12" r="1"></circle>
                 <path d="M12 1v6m0 6v6"></path>
@@ -87,7 +87,7 @@
         document.querySelectorAll('.nav-item').forEach(link => {
             link.addEventListener('click', function(e) {
                 // If we're on the Today page, auto-log session before navigating
-                if (window.location.pathname === '/') {
+                if (window.location.pathname === '/' || window.location.pathname === '/Index') {
                     navigator.sendBeacon('/api/logsession', new Blob([JSON.stringify({})], {type: 'application/json'}));
                 }
             });
