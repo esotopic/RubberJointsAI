@@ -114,19 +114,16 @@
                     <span class="progress-count" id="count-recovery_tool">@recoveryDone/@recoveryTotal</span>
                 </div>
             }
-            @if (suppsTotal > 0)
-            {
-                <div class="progress-row">
-                    <div class="progress-label">
-                        <span class="progress-dot" style="background:#ffcc00;"></span>
-                        <span>Vitamins</span>
-                    </div>
-                    <div class="progress-track">
-                        <div class="progress-fill" id="bar-supplements" style="width:@(suppsTotal > 0 ? (suppsDone * 100 / suppsTotal) : 0)%;background:#ffcc00;"></div>
-                    </div>
-                    <span class="progress-count" id="count-supplements">@suppsDone/@suppsTotal</span>
+            <div class="progress-row">
+                <div class="progress-label">
+                    <span class="progress-dot" style="background:#ffcc00;"></span>
+                    <span>Vitamins</span>
                 </div>
-            }
+                <div class="progress-track">
+                    <div class="progress-fill" id="bar-supplements" style="width:@(suppsTotal > 0 ? (suppsDone * 100 / suppsTotal) : 0)%;background:#ffcc00;"></div>
+                </div>
+                <span class="progress-count" id="count-supplements">@suppsDone/@suppsTotal</span>
+            </div>
         </div>
     </section>
 
