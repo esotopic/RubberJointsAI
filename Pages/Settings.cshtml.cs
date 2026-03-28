@@ -14,13 +14,20 @@ namespace RubberJointsAI.Pages
         [BindProperty]
         public string? StartDate { get; set; }
 
-        [BindProperty]
-        public Dictionary<string, bool> RecoveryTools { get; set; } = new();
-
         public string? ErrorMessage { get; set; }
         public string? SuccessMessage { get; set; }
         public int CurrentWeek { get; set; }
         public int CurrentPhase { get; set; }
+
+        // Exercises grouped by category
+        public List<Exercise> WarmupExercises { get; set; } = new();
+        public List<Exercise> MobilityExercises { get; set; } = new();
+        public List<Exercise> RecoveryExercises { get; set; } = new();
+        public List<Supplement> AllSupplements { get; set; } = new();
+
+        // Selected IDs from user preferences
+        public HashSet<string> SelectedExerciseIds { get; set; } = new();
+        public HashSet<string> SelectedSupplementIds { get; set; } = new();
 
         public SettingsModel(RubberJointsAIRepository repository)
         {
@@ -34,22 +41,28 @@ namespace RubberJointsAI.Pages
             try
             {
                 var settings = await _repository.GetUserSettingsAsync(userId);
-
                 StartDate = settings?.StartDate;
 
-                // Initialize recovery tools
-                var allTools = new[] { "hot-tub", "vibration-plate", "hydro-massager", "steam-sauna", "dry-sauna", "compex-warmup", "compex-recovery", "compression-boots" };
-                var disabledTools = (settings?.DisabledTools ?? "").Split(',', System.StringSplitOptions.RemoveEmptyEntries).ToHashSet();
-
-                foreach (var tool in allTools)
-                {
-                    RecoveryTools[tool] = !disabledTools.Contains(tool);
-                }
-
-                // Calculate current week and phase
                 var phaseInfo = CalculatePhaseAndWeek(StartDate);
                 CurrentWeek = phaseInfo.week;
                 CurrentPhase = phaseInfo.phase;
+
+                // Load all exercises and supplements
+                var allExercises = await _repository.GetAllExercisesAsync();
+                WarmupExercises = allExercises.Where(e => e.Category == "warmup_tool").OrderBy(e => e.Name).ToList();
+                MobilityExercises = allExercises.Where(e => e.Category == "mobility").OrderBy(e => e.Name).ToList();
+                RecoveryExercises = allExercises.Where(e => e.Category == "recovery_tool").OrderBy(e => e.Name).ToList();
+                AllSupplements = await _repository.GetSupplementsAsync();
+
+                // Load user preferences
+                var prefs = await _repository.GetUserPreferencesAsync(userId);
+                if (prefs != null)
+                {
+                    SelectedExerciseIds = new HashSet<string>(
+                        (prefs.SelectedExercises ?? "").Split(',', StringSplitOptions.RemoveEmptyEntries));
+                    SelectedSupplementIds = new HashSet<string>(
+                        (prefs.SelectedSupplements ?? "").Split(',', StringSplitOptions.RemoveEmptyEntries));
+                }
             }
             catch (Exception ex)
             {
@@ -63,29 +76,25 @@ namespace RubberJointsAI.Pages
 
             try
             {
-                var settings = new UserSettings
-                {
-                    UserId = userId,
-                    StartDate = StartDate,
-                    DisabledTools = string.Join(',', RecoveryTools
-                        .Where(kv => !kv.Value)
-                        .Select(kv => kv.Key))
-                };
-
+                var settings = await _repository.GetUserSettingsAsync(userId) ?? new UserSettings { UserId = userId };
+                settings.StartDate = StartDate;
                 await _repository.SaveUserSettingsAsync(settings);
 
-                SuccessMessage = "Settings saved successfully!";
+                SuccessMessage = "Settings saved!";
 
-                // Recalculate phase info
                 var phaseInfo = CalculatePhaseAndWeek(StartDate);
                 CurrentWeek = phaseInfo.week;
                 CurrentPhase = phaseInfo.phase;
+
+                // Reload data for the page
+                await LoadPageData(userId);
 
                 return Page();
             }
             catch (Exception ex)
             {
                 ErrorMessage = "Failed to save settings. Please try again.";
+                await LoadPageData(userId);
                 return Page();
             }
         }
@@ -96,7 +105,6 @@ namespace RubberJointsAI.Pages
 
             try
             {
-                // Full reset — wipes all user data and triggers re-onboarding
                 await _repository.ResetAllUserDataAsync(userId);
                 return Redirect("/AI");
             }
@@ -107,20 +115,33 @@ namespace RubberJointsAI.Pages
             }
         }
 
+        private async Task LoadPageData(string userId)
+        {
+            var allExercises = await _repository.GetAllExercisesAsync();
+            WarmupExercises = allExercises.Where(e => e.Category == "warmup_tool").OrderBy(e => e.Name).ToList();
+            MobilityExercises = allExercises.Where(e => e.Category == "mobility").OrderBy(e => e.Name).ToList();
+            RecoveryExercises = allExercises.Where(e => e.Category == "recovery_tool").OrderBy(e => e.Name).ToList();
+            AllSupplements = await _repository.GetSupplementsAsync();
+
+            var prefs = await _repository.GetUserPreferencesAsync(userId);
+            if (prefs != null)
+            {
+                SelectedExerciseIds = new HashSet<string>(
+                    (prefs.SelectedExercises ?? "").Split(',', StringSplitOptions.RemoveEmptyEntries));
+                SelectedSupplementIds = new HashSet<string>(
+                    (prefs.SelectedSupplements ?? "").Split(',', StringSplitOptions.RemoveEmptyEntries));
+            }
+        }
+
         private (int week, int phase) CalculatePhaseAndWeek(string? startDateStr)
         {
             if (string.IsNullOrEmpty(startDateStr) || !DateTime.TryParse(startDateStr, out var startDate))
-            {
                 return (1, 1);
-            }
 
             var today = DateTime.UtcNow;
             int daysSinceStart = (today - startDate).Days;
-
-            // 12-week program, 6 weeks per phase
             int week = Math.Min(daysSinceStart / 7 + 1, 12);
             int phase = week <= 6 ? 1 : 2;
-
             return (week, phase);
         }
     }

@@ -338,6 +338,60 @@ app.MapPost("/api/plan/remove", async (HttpContext context, RubberJointsAIReposi
     }
 });
 
+// ── Unified toggle: add/remove exercise or supplement from user preferences + regenerate plan ──
+app.MapPost("/api/preferences/toggle", async (HttpContext context, RubberJointsAIRepository repository) =>
+{
+    if (context.User.Identity?.IsAuthenticated != true)
+        return Results.Unauthorized();
+
+    try
+    {
+        string userId = context.User.Identity?.Name ?? "default";
+        using var doc = await System.Text.Json.JsonDocument.ParseAsync(context.Request.Body);
+        var root = doc.RootElement;
+
+        string? exerciseId = root.TryGetProperty("exerciseId", out var eid) ? eid.GetString() : null;
+        string? supplementId = root.TryGetProperty("supplementId", out var sid) ? sid.GetString() : null;
+        bool enabled = root.TryGetProperty("enabled", out var en) && en.GetBoolean();
+
+        if (string.IsNullOrEmpty(exerciseId) && string.IsNullOrEmpty(supplementId))
+            return Results.Json(new { success = false, error = "Missing exerciseId or supplementId" }, statusCode: 400);
+
+        var prefs = await repository.GetUserPreferencesAsync(userId);
+        if (prefs == null)
+            return Results.Json(new { success = false, error = "No preferences found" }, statusCode: 404);
+
+        if (!string.IsNullOrEmpty(exerciseId))
+        {
+            var ids = (prefs.SelectedExercises ?? "").Split(',', StringSplitOptions.RemoveEmptyEntries).ToList();
+            if (enabled && !ids.Contains(exerciseId))
+                ids.Add(exerciseId);
+            else if (!enabled)
+                ids.Remove(exerciseId);
+            prefs.SelectedExercises = string.Join(",", ids);
+        }
+
+        if (!string.IsNullOrEmpty(supplementId))
+        {
+            var ids = (prefs.SelectedSupplements ?? "").Split(',', StringSplitOptions.RemoveEmptyEntries).ToList();
+            if (enabled && !ids.Contains(supplementId))
+                ids.Add(supplementId);
+            else if (!enabled)
+                ids.Remove(supplementId);
+            prefs.SelectedSupplements = string.Join(",", ids);
+        }
+
+        await repository.SaveUserPreferencesAsync(prefs);
+        await repository.RegenerateFuturePlanAsync(userId, prefs);
+
+        return Results.Json(new { success = true, enabled });
+    }
+    catch (Exception ex)
+    {
+        return Results.Json(new { success = false, error = ex.Message }, statusCode: 500);
+    }
+});
+
 // ── Get exercises by category (for picker) ──
 app.MapGet("/api/exercises", async (HttpContext context, RubberJointsAIRepository repository) =>
 {

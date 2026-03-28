@@ -2217,6 +2217,131 @@ namespace RubberJointsAI.Data
             }
         }
 
+        /// <summary>
+        /// Regenerates plan entries from today forward using current UserPreferences.
+        /// Preserves existing enrollment and past days. Also syncs UserSupplements.
+        /// </summary>
+        public async Task RegenerateFuturePlanAsync(string userId, UserPreferences prefs)
+        {
+            using var connection = new SqlConnection(_connectionString);
+            await connection.OpenAsync();
+
+            var pst = TimeZoneInfo.FindSystemTimeZoneById("America/Los_Angeles");
+            var pacificNow = TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, pst);
+            string today = pacificNow.ToString("yyyy-MM-dd");
+
+            // Get active enrollment
+            var enrollment = await GetActiveEnrollmentAsync(userId);
+            if (enrollment == null) return;
+
+            int programId = enrollment.ProgramId;
+            var enrollStart = DateTime.Parse(enrollment.StartDate);
+            var todayDate = DateTime.Parse(today);
+            int dayOffset = (todayDate - enrollStart).Days;
+            int remainingDays = 28 - dayOffset;
+            if (remainingDays <= 0) return;
+
+            // Delete future plan entries (today and beyond)
+            using (var cmd = connection.CreateCommand())
+            {
+                cmd.CommandText = "DELETE FROM UserDailyPlan WHERE UserId = @u AND Date >= @today";
+                cmd.Parameters.AddWithValue("@u", userId);
+                cmd.Parameters.AddWithValue("@today", today);
+                await cmd.ExecuteNonQueryAsync();
+            }
+
+            // Load exercise metadata
+            var allExercises = new Dictionary<string, Exercise>();
+            using (var cmd = connection.CreateCommand())
+            {
+                cmd.CommandText = "SELECT Id, Name, Category, Targets, DefaultRx FROM Exercises";
+                using var reader = await cmd.ExecuteReaderAsync();
+                while (await reader.ReadAsync())
+                {
+                    allExercises[reader.GetString(0)] = new Exercise
+                    {
+                        Id = reader.GetString(0),
+                        Name = reader.GetString(1),
+                        Category = reader.GetString(2),
+                        Targets = reader.GetString(3),
+                        DefaultRx = reader.IsDBNull(4) ? null : reader.GetString(4)
+                    };
+                }
+            }
+
+            var selectedIds = new HashSet<string>((prefs.SelectedExercises ?? "").Split(',', StringSplitOptions.RemoveEmptyEntries));
+            string[] weeklyPattern = GetWeeklyPattern(prefs.HasGym, prefs.DaysPerWeek);
+
+            // Regenerate from today to end of 28-day plan
+            using var insertCmd = connection.CreateCommand();
+            insertCmd.CommandText = @"INSERT INTO UserDailyPlan (UserId, ProgramId, Date, DayType, ExerciseId, Category, SortOrder, Rx, AiAdjusted)
+                VALUES (@u, @p, @d, @dt, @eid, @cat, @so, @rx, 0)";
+
+            for (int day = dayOffset; day < 28; day++)
+            {
+                string dayType = weeklyPattern[day % 7];
+                string date = enrollStart.AddDays(day).ToString("yyyy-MM-dd");
+                var dayExercises = GetExercisesForDayTypeCustom(dayType, selectedIds, allExercises, prefs.HasGym, day);
+
+                int sortOrder = 1;
+                foreach (var (exId, category, rx) in dayExercises)
+                {
+                    insertCmd.Parameters.Clear();
+                    insertCmd.Parameters.AddWithValue("@u", userId);
+                    insertCmd.Parameters.AddWithValue("@p", programId);
+                    insertCmd.Parameters.AddWithValue("@d", date);
+                    insertCmd.Parameters.AddWithValue("@dt", dayType);
+                    insertCmd.Parameters.AddWithValue("@eid", exId);
+                    insertCmd.Parameters.AddWithValue("@cat", category);
+                    insertCmd.Parameters.AddWithValue("@so", sortOrder++);
+                    insertCmd.Parameters.AddWithValue("@rx", (object?)rx ?? DBNull.Value);
+                    await insertCmd.ExecuteNonQueryAsync();
+                }
+            }
+
+            // Sync supplements
+            using (var cmd = connection.CreateCommand())
+            {
+                cmd.CommandText = "DELETE FROM UserSupplements WHERE UserId = @u";
+                cmd.Parameters.AddWithValue("@u", userId);
+                await cmd.ExecuteNonQueryAsync();
+            }
+
+            var selectedSuppIds = (prefs.SelectedSupplements ?? "").Split(',', StringSplitOptions.RemoveEmptyEntries);
+            var suppMeta = new Dictionary<string, Supplement>();
+            using (var cmd = connection.CreateCommand())
+            {
+                cmd.CommandText = "SELECT Id, Name, Dose, Time, TimeGroup FROM Supplements";
+                using var reader = await cmd.ExecuteReaderAsync();
+                while (await reader.ReadAsync())
+                {
+                    suppMeta[reader.GetString(0)] = new Supplement
+                    {
+                        Id = reader.GetString(0),
+                        Name = reader.GetString(1),
+                        Dose = reader.IsDBNull(2) ? "" : reader.GetString(2),
+                        Time = reader.IsDBNull(3) ? "" : reader.GetString(3),
+                        TimeGroup = reader.IsDBNull(4) ? "am" : reader.GetString(4)
+                    };
+                }
+            }
+
+            foreach (var suppId in selectedSuppIds)
+            {
+                if (!suppMeta.ContainsKey(suppId)) continue;
+                var supp = suppMeta[suppId];
+                using var cmd = connection.CreateCommand();
+                cmd.CommandText = @"
+                    IF NOT EXISTS (SELECT 1 FROM UserSupplements WHERE UserId=@u AND SupplementId=@s AND TimeGroup=@tg)
+                    INSERT INTO UserSupplements (UserId, SupplementId, TimeGroup, AddedDate) VALUES (@u, @s, @tg, @d)";
+                cmd.Parameters.AddWithValue("@u", userId);
+                cmd.Parameters.AddWithValue("@s", suppId);
+                cmd.Parameters.AddWithValue("@tg", supp.TimeGroup);
+                cmd.Parameters.AddWithValue("@d", today);
+                await cmd.ExecuteNonQueryAsync();
+            }
+        }
+
         private string[] GetWeeklyPattern(bool hasGym, int daysPerWeek)
         {
             return daysPerWeek switch

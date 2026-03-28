@@ -548,14 +548,10 @@ async function addExercise(exercise) {
     closePicker();
 
     try {
-        const response = await fetch('/api/plan/add', {
+        const response = await fetch('/api/preferences/toggle', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                date: PAGE_DATE,
-                exerciseId: exercise.id,
-                category: pickerCategory
-            })
+            body: JSON.stringify({ exerciseId: exercise.id, enabled: true })
         });
 
         const result = await response.json();
@@ -570,15 +566,15 @@ async function addExercise(exercise) {
     }
 }
 
-// ── Delete exercise from plan (today + future) ──
+// ── Delete exercise from plan (today + future) via unified preferences toggle ──
 async function deleteExercise(exerciseId, exerciseName, btnEl) {
-    if (!confirm(`Remove "${exerciseName}" from today and all future sessions?`)) return;
+    if (!confirm(`Remove "${exerciseName}" from your program?`)) return;
 
     try {
-        const response = await fetch('/api/plan/remove', {
+        const response = await fetch('/api/preferences/toggle', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ exerciseId })
+            body: JSON.stringify({ exerciseId, enabled: false })
         });
 
         const result = await response.json();
