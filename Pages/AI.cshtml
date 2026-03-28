@@ -68,13 +68,9 @@
                 <div class="ai-joke-tagline">— Your joints, probably</div>
             </div>
 
-            <!-- Today's Quick Glance — compact 3-line summary -->
+            <!-- Today's Quick Glance — compact 2-line summary -->
             <div class="ai-info-card ai-info-compact">
                 <div class="ai-info-nugget">💪 @Model.ExercisesDone/@Model.ExercisesTotal exercises · @Model.SupplementsDone/@Model.SupplementsTotal supplements</div>
-                @if (Model.NextMilestone != null)
-                {
-                    <div class="ai-info-nugget">🎯 Next: <strong>@Model.NextMilestone</strong> · @Model.DaysRemaining days left</div>
-                }
                 <div class="ai-info-nugget">📊 Check <strong>Progress</strong> tab to track your journey</div>
             </div>
 
