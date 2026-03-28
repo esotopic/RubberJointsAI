@@ -2683,7 +2683,7 @@ a.cal-day:active {
   width: 100%;
   padding: 10px 24px;
   margin: 0;
-  background: #34c759;
+  background: #4a6cf7;
   color: white;
   font-size: 14px;
   font-weight: 800;
@@ -2697,10 +2697,10 @@ a.cal-day:active {
   transition: all 0.2s ease;
 }
 .ai-start-training-btn:hover {
-  background: #2db84e;
+  background: #3a5ce5;
 }
 .ai-start-training-btn:active {
-  background: #28a745;
+  background: #3451b2;
 }
 
 /* --- Welcome text reveal --- */

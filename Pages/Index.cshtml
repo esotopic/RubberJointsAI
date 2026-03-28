@@ -21,7 +21,7 @@
 
     // Weekly calendar — anchored to the week containing the selected date
     var selectedDate = DateTime.TryParse(Model.ViewModel.SelectedDate, out var sd) ? sd : DateTime.UtcNow;
-    var actualToday = DateTime.UtcNow;
+    var actualToday = DateTime.TryParse(Model.ViewModel.TodayDate, out var parsedToday) ? parsedToday : DateTime.UtcNow;
     var monday = selectedDate.AddDays(-(int)selectedDate.DayOfWeek + (int)DayOfWeek.Monday);
     if (selectedDate.DayOfWeek == DayOfWeek.Sunday) monday = monday.AddDays(-7);
 
