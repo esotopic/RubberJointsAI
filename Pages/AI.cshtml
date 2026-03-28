@@ -289,6 +289,23 @@ function renderUIComponent(container, comp, step) {
             div.appendChild(card);
         });
         container.appendChild(div);
+
+        // Add quick-start skip button on days picker (step 1)
+        if (comp.id === 'days_per_week') {
+            const skipDiv = document.createElement('div');
+            skipDiv.style.cssText = 'text-align:center;margin-top:14px;';
+            skipDiv.innerHTML = `
+                <div style="font-size:12px;color:var(--tx3);margin-bottom:6px;">— or —</div>
+                <button class="btn-quick-start" style="background:linear-gradient(135deg,#6366f1,#8b5cf6);color:#fff;border:none;border-radius:12px;padding:12px 24px;font-size:14px;font-weight:600;cursor:pointer;width:90%;max-width:320px;">⚡ Skip — Just Build My Plan</button>
+                <div style="font-size:11px;color:var(--tx3);margin-top:5px;">4 days/week · all exercises · customize anytime</div>
+            `;
+            skipDiv.querySelector('.btn-quick-start').addEventListener('click', () => {
+                skipDiv.style.pointerEvents='none'; skipDiv.style.opacity='0.5';
+                div.querySelectorAll('.ui-choice-card').forEach(c => { c.style.pointerEvents='none'; c.style.opacity='0.5'; });
+                sendMessage('⚡ Quick Start — build my plan!', { step: 1, data: { quick_start: true } });
+            });
+            container.appendChild(skipDiv);
+        }
     }
     else if (comp.type === 'exercise_picker') {
         const div = document.createElement('div');

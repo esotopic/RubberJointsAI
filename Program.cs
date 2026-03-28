@@ -493,6 +493,22 @@ app.MapPost("/api/ai/chat", async (HttpContext context, RubberJointsAIRepository
                         prefs.OnboardingStep = 1;
                         break;
                     case 1: // days selection
+                        // Check if user wants to skip directly to planning
+                        if (selectionData.TryGetProperty("quick_start", out var qs) && qs.GetBoolean())
+                        {
+                            // Auto-select all exercises appropriate for gym/home
+                            var autoExercises = await repository.GetAllExercisesAsync();
+                            var autoIds = autoExercises.Select(e => e.Id).ToList();
+                            prefs.SelectedExercises = string.Join(",", autoIds);
+                            prefs.DaysPerWeek = 4;
+                            prefs.SelectedSupplements = ""; // no supplements by default
+                            prefs.OnboardingStep = 7;
+                            await repository.SaveUserPreferencesAsync(prefs);
+                            await repository.GenerateCustomPlanAsync(userId, prefs);
+                            var qsPrompt = $"You are the AI Coach for a hilariously serious joint & mobility workout program — because your joints called and they want better treatment. The user '{userId}' just did a quick setup! Their plan has been auto-generated: 4 days/week, {(prefs.HasGym ? "gym access — we loaded up all the gym goodies" : "home only — everything you need, no gym required")}, all available exercises included. Celebrate! Keep it to 2-3 sentences. Make a funny joint/mobility joke. Tell them to tap START TRAINING to begin. Mention they can customize exercises and supplements anytime from the Workout tab or by chatting with you.";
+                            var qsText = await CallClaudeAsync(httpFactory, apiKey, qsPrompt, "Quick start!", history);
+                            return Results.Json(new { success = true, response = qsText, onboarding_step = 7, onboarding_complete = true });
+                        }
                         prefs.DaysPerWeek = selectionData.GetProperty("days_per_week").GetInt32();
                         prefs.OnboardingStep = 2;
                         break;
