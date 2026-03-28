@@ -96,28 +96,9 @@ namespace RubberJointsAI.Pages
 
             try
             {
-                var settings = new UserSettings
-                {
-                    UserId = userId,
-                    StartDate = null,
-                    DisabledTools = ""
-                };
-
-                await _repository.SaveUserSettingsAsync(settings);
-                SuccessMessage = "All progress has been reset.";
-
-                StartDate = null;
-                CurrentWeek = 1;
-                CurrentPhase = 1;
-
-                // Reset recovery tools to all available
-                var allTools = new[] { "hot-tub", "vibration-plate", "hydro-massager", "steam-sauna", "dry-sauna", "compex-warmup", "compex-recovery", "compression-boots" };
-                foreach (var tool in allTools)
-                {
-                    RecoveryTools[tool] = true;
-                }
-
-                return Page();
+                // Full reset — wipes all user data and triggers re-onboarding
+                await _repository.ResetAllUserDataAsync(userId);
+                return Redirect("/AI");
             }
             catch (Exception ex)
             {

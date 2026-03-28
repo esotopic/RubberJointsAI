@@ -341,6 +341,24 @@ namespace RubberJointsAI.Data
                     await command.ExecuteNonQueryAsync();
                 }
 
+                // Create UserPreferences table (onboarding + equipment selections)
+                using (var command = connection.CreateCommand())
+                {
+                    command.CommandText = @"
+                        IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 'UserPreferences')
+                        BEGIN
+                            CREATE TABLE UserPreferences (
+                                UserId NVARCHAR(100) PRIMARY KEY,
+                                HasGym BIT DEFAULT 0,
+                                DaysPerWeek INT DEFAULT 3,
+                                OnboardingStep INT DEFAULT 0,
+                                SelectedExercises NVARCHAR(MAX) DEFAULT '',
+                                SelectedSupplements NVARCHAR(MAX) DEFAULT ''
+                            )
+                        END";
+                    await command.ExecuteNonQueryAsync();
+                }
+
                 // Seed Exercises
                 await SeedExercisesAsync(connection);
 
@@ -1866,6 +1884,310 @@ namespace RubberJointsAI.Data
             }
 
             return newId;
+        }
+
+        // ── UserPreferences CRUD ──
+
+        public async Task<UserPreferences?> GetUserPreferencesAsync(string userId)
+        {
+            using var connection = new SqlConnection(_connectionString);
+            await connection.OpenAsync();
+            using var cmd = connection.CreateCommand();
+            cmd.CommandText = "SELECT UserId, HasGym, DaysPerWeek, OnboardingStep, SelectedExercises, SelectedSupplements FROM UserPreferences WHERE UserId = @userId";
+            cmd.Parameters.AddWithValue("@userId", userId);
+            using var reader = await cmd.ExecuteReaderAsync();
+            if (await reader.ReadAsync())
+            {
+                return new UserPreferences
+                {
+                    UserId = reader.GetString(0),
+                    HasGym = reader.GetBoolean(1),
+                    DaysPerWeek = reader.GetInt32(2),
+                    OnboardingStep = reader.GetInt32(3),
+                    SelectedExercises = reader.IsDBNull(4) ? "" : reader.GetString(4),
+                    SelectedSupplements = reader.IsDBNull(5) ? "" : reader.GetString(5)
+                };
+            }
+            return null;
+        }
+
+        public async Task SaveUserPreferencesAsync(UserPreferences prefs)
+        {
+            using var connection = new SqlConnection(_connectionString);
+            await connection.OpenAsync();
+            using var cmd = connection.CreateCommand();
+            cmd.CommandText = @"
+                MERGE INTO UserPreferences AS target
+                USING (VALUES (@userId, @hasGym, @daysPerWeek, @onboardingStep, @selectedExercises, @selectedSupplements))
+                    AS source (UserId, HasGym, DaysPerWeek, OnboardingStep, SelectedExercises, SelectedSupplements)
+                ON target.UserId = source.UserId
+                WHEN MATCHED THEN UPDATE SET
+                    HasGym = source.HasGym, DaysPerWeek = source.DaysPerWeek,
+                    OnboardingStep = source.OnboardingStep, SelectedExercises = source.SelectedExercises,
+                    SelectedSupplements = source.SelectedSupplements
+                WHEN NOT MATCHED THEN INSERT (UserId, HasGym, DaysPerWeek, OnboardingStep, SelectedExercises, SelectedSupplements)
+                    VALUES (source.UserId, source.HasGym, source.DaysPerWeek, source.OnboardingStep, source.SelectedExercises, source.SelectedSupplements);";
+            cmd.Parameters.AddWithValue("@userId", prefs.UserId);
+            cmd.Parameters.AddWithValue("@hasGym", prefs.HasGym);
+            cmd.Parameters.AddWithValue("@daysPerWeek", prefs.DaysPerWeek);
+            cmd.Parameters.AddWithValue("@onboardingStep", prefs.OnboardingStep);
+            cmd.Parameters.AddWithValue("@selectedExercises", prefs.SelectedExercises ?? "");
+            cmd.Parameters.AddWithValue("@selectedSupplements", prefs.SelectedSupplements ?? "");
+            await cmd.ExecuteNonQueryAsync();
+        }
+
+        // ── Reset all user data for re-onboarding ──
+
+        public async Task ResetAllUserDataAsync(string userId)
+        {
+            using var connection = new SqlConnection(_connectionString);
+            await connection.OpenAsync();
+
+            var tables = new[]
+            {
+                "DELETE FROM DailyChecks WHERE UserId = @u",
+                "DELETE FROM SessionLogs WHERE UserId = @u",
+                "DELETE FROM UserDailyPlan WHERE UserId = @u",
+                "DELETE FROM UserEnrollments WHERE UserId = @u",
+                "DELETE FROM UserSupplements WHERE UserId = @u",
+                "DELETE FROM UserMilestones WHERE UserId = @u",
+                "DELETE FROM UserSettings WHERE UserId = @u",
+                "DELETE FROM UserPreferences WHERE UserId = @u"
+            };
+
+            foreach (var sql in tables)
+            {
+                using var cmd = connection.CreateCommand();
+                cmd.CommandText = sql;
+                cmd.Parameters.AddWithValue("@u", userId);
+                await cmd.ExecuteNonQueryAsync();
+            }
+        }
+
+        // ── Generate custom plan based on user preferences ──
+
+        public async Task GenerateCustomPlanAsync(string userId, UserPreferences prefs)
+        {
+            using var connection = new SqlConnection(_connectionString);
+            await connection.OpenAsync();
+
+            // Get or create the program
+            int programId;
+            using (var cmd = connection.CreateCommand())
+            {
+                cmd.CommandText = "SELECT TOP 1 Id FROM Programs";
+                var result = await cmd.ExecuteScalarAsync();
+                programId = result != null ? (int)result : 1;
+            }
+
+            // Mark old enrollments as completed
+            using (var cmd = connection.CreateCommand())
+            {
+                cmd.CommandText = "UPDATE UserEnrollments SET Status = 'completed' WHERE UserId = @u AND Status = 'active'";
+                cmd.Parameters.AddWithValue("@u", userId);
+                await cmd.ExecuteNonQueryAsync();
+            }
+
+            // Delete old plan data
+            using (var cmd = connection.CreateCommand())
+            {
+                cmd.CommandText = "DELETE FROM UserDailyPlan WHERE UserId = @u";
+                cmd.Parameters.AddWithValue("@u", userId);
+                await cmd.ExecuteNonQueryAsync();
+            }
+
+            // Create enrollment starting today (Pacific time)
+            var pst = TimeZoneInfo.FindSystemTimeZoneById("America/Los_Angeles");
+            var pacificNow = TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, pst);
+            string startDate = pacificNow.ToString("yyyy-MM-dd");
+
+            int enrollmentId;
+            using (var cmd = connection.CreateCommand())
+            {
+                cmd.CommandText = @"INSERT INTO UserEnrollments (UserId, ProgramId, StartDate, Status)
+                    OUTPUT INSERTED.Id VALUES (@u, @p, @s, 'active')";
+                cmd.Parameters.AddWithValue("@u", userId);
+                cmd.Parameters.AddWithValue("@p", programId);
+                cmd.Parameters.AddWithValue("@s", startDate);
+                enrollmentId = (int)await cmd.ExecuteScalarAsync();
+            }
+
+            // Save start date in UserSettings too
+            using (var cmd = connection.CreateCommand())
+            {
+                cmd.CommandText = @"
+                    MERGE INTO UserSettings AS t USING (VALUES (@u, @s, '')) AS s (UserId, StartDate, DisabledTools)
+                    ON t.UserId = s.UserId
+                    WHEN MATCHED THEN UPDATE SET StartDate = s.StartDate
+                    WHEN NOT MATCHED THEN INSERT (UserId, StartDate, DisabledTools) VALUES (s.UserId, s.StartDate, s.DisabledTools);";
+                cmd.Parameters.AddWithValue("@u", userId);
+                cmd.Parameters.AddWithValue("@s", startDate);
+                await cmd.ExecuteNonQueryAsync();
+            }
+
+            // Build selected exercise sets
+            var selectedIds = new HashSet<string>((prefs.SelectedExercises ?? "").Split(',', StringSplitOptions.RemoveEmptyEntries));
+
+            // Load exercise metadata for category info
+            var allExercises = new Dictionary<string, Exercise>();
+            using (var cmd = connection.CreateCommand())
+            {
+                cmd.CommandText = "SELECT Id, Name, Category, Targets, DefaultRx FROM Exercises";
+                using var reader = await cmd.ExecuteReaderAsync();
+                while (await reader.ReadAsync())
+                {
+                    allExercises[reader.GetString(0)] = new Exercise
+                    {
+                        Id = reader.GetString(0),
+                        Name = reader.GetString(1),
+                        Category = reader.GetString(2),
+                        Targets = reader.GetString(3),
+                        DefaultRx = reader.IsDBNull(4) ? null : reader.GetString(4)
+                    };
+                }
+            }
+
+            // Determine weekly pattern
+            string[] weeklyPattern = GetWeeklyPattern(prefs.HasGym, prefs.DaysPerWeek);
+
+            // Generate 28 days
+            var start = DateTime.Parse(startDate);
+            using var insertCmd = connection.CreateCommand();
+            insertCmd.CommandText = @"INSERT INTO UserDailyPlan (UserId, ProgramId, Date, DayType, ExerciseId, Category, SortOrder, Rx, AiAdjusted)
+                VALUES (@u, @p, @d, @dt, @eid, @cat, @so, @rx, 0)";
+
+            for (int day = 0; day < 28; day++)
+            {
+                string dayType = weeklyPattern[day % 7];
+                string date = start.AddDays(day).ToString("yyyy-MM-dd");
+                var dayExercises = GetExercisesForDayTypeCustom(dayType, selectedIds, allExercises, prefs.HasGym);
+
+                int sortOrder = 1;
+                foreach (var (exId, category, rx) in dayExercises)
+                {
+                    insertCmd.Parameters.Clear();
+                    insertCmd.Parameters.AddWithValue("@u", userId);
+                    insertCmd.Parameters.AddWithValue("@p", programId);
+                    insertCmd.Parameters.AddWithValue("@d", date);
+                    insertCmd.Parameters.AddWithValue("@dt", dayType);
+                    insertCmd.Parameters.AddWithValue("@eid", exId);
+                    insertCmd.Parameters.AddWithValue("@cat", category);
+                    insertCmd.Parameters.AddWithValue("@so", sortOrder++);
+                    insertCmd.Parameters.AddWithValue("@rx", (object?)rx ?? DBNull.Value);
+                    await insertCmd.ExecuteNonQueryAsync();
+                }
+            }
+
+            // Set up user supplements
+            var selectedSuppIds = (prefs.SelectedSupplements ?? "").Split(',', StringSplitOptions.RemoveEmptyEntries);
+            // Clear existing
+            using (var cmd = connection.CreateCommand())
+            {
+                cmd.CommandText = "DELETE FROM UserSupplements WHERE UserId = @u";
+                cmd.Parameters.AddWithValue("@u", userId);
+                await cmd.ExecuteNonQueryAsync();
+            }
+
+            // Load supplement metadata for time groups
+            var suppMeta = new Dictionary<string, Supplement>();
+            using (var cmd = connection.CreateCommand())
+            {
+                cmd.CommandText = "SELECT Id, Name, Dose, Time, TimeGroup FROM Supplements";
+                using var reader = await cmd.ExecuteReaderAsync();
+                while (await reader.ReadAsync())
+                {
+                    suppMeta[reader.GetString(0)] = new Supplement
+                    {
+                        Id = reader.GetString(0),
+                        Name = reader.GetString(1),
+                        Dose = reader.IsDBNull(2) ? "" : reader.GetString(2),
+                        Time = reader.IsDBNull(3) ? "" : reader.GetString(3),
+                        TimeGroup = reader.IsDBNull(4) ? "am" : reader.GetString(4)
+                    };
+                }
+            }
+
+            foreach (var suppId in selectedSuppIds)
+            {
+                if (!suppMeta.ContainsKey(suppId)) continue;
+                var supp = suppMeta[suppId];
+                using var cmd = connection.CreateCommand();
+                cmd.CommandText = @"
+                    IF NOT EXISTS (SELECT 1 FROM UserSupplements WHERE UserId=@u AND SupplementId=@s AND TimeGroup=@tg)
+                    INSERT INTO UserSupplements (UserId, SupplementId, TimeGroup, AddedDate) VALUES (@u, @s, @tg, @d)";
+                cmd.Parameters.AddWithValue("@u", userId);
+                cmd.Parameters.AddWithValue("@s", suppId);
+                cmd.Parameters.AddWithValue("@tg", supp.TimeGroup);
+                cmd.Parameters.AddWithValue("@d", startDate);
+                await cmd.ExecuteNonQueryAsync();
+            }
+        }
+
+        private string[] GetWeeklyPattern(bool hasGym, int daysPerWeek)
+        {
+            string g = hasGym ? "gym" : "home";
+            return daysPerWeek switch
+            {
+                2 => new[] { g, "rest", "rest", g, "rest", "recovery", "rest" },
+                3 => new[] { g, "rest", g, "rest", g, "recovery", "rest" },
+                4 => new[] { g, "home", "rest", g, "home", "recovery", "rest" },
+                5 => new[] { g, "home", g, "home", g, "recovery", "rest" },
+                6 => new[] { g, "home", g, "home", g, "home", "recovery" },
+                7 => new[] { g, "home", g, "home", g, "recovery", "rest" },
+                _ => new[] { g, "rest", g, "rest", g, "recovery", "rest" },
+            };
+        }
+
+        private List<(string exId, string category, string? rx)> GetExercisesForDayTypeCustom(
+            string dayType, HashSet<string> selectedIds, Dictionary<string, Exercise> allExercises, bool hasGym)
+        {
+            var result = new List<(string, string, string?)>();
+
+            if (dayType == "rest")
+            {
+                // Rest: minimal mobility only
+                foreach (var id in new[] { "cars-routine", "deep-squat-hold", "dead-hang" })
+                {
+                    if (selectedIds.Contains(id) && allExercises.ContainsKey(id))
+                        result.Add((id, "mobility", allExercises[id].DefaultRx));
+                }
+                return result;
+            }
+
+            if (dayType == "recovery")
+            {
+                // Recovery: only recovery_tool exercises
+                foreach (var id in selectedIds)
+                {
+                    if (allExercises.TryGetValue(id, out var ex) && ex.Category == "recovery_tool")
+                        result.Add((id, ex.Category, ex.DefaultRx));
+                }
+                return result;
+            }
+
+            // Gym or Home training day
+            foreach (var id in selectedIds)
+            {
+                if (!allExercises.TryGetValue(id, out var ex)) continue;
+
+                if (dayType == "gym")
+                {
+                    // Gym: all selected exercises (warmup + mobility + strength + recovery tools)
+                    result.Add((id, ex.Category, ex.DefaultRx));
+                }
+                else if (dayType == "home")
+                {
+                    // Home: mobility + strength only (no warmup_tool or recovery_tool since those need equipment)
+                    if (ex.Category == "mobility" || ex.Category == "strength")
+                        result.Add((id, ex.Category, ex.DefaultRx));
+                }
+            }
+
+            // Sort: warmup_tool → mobility → strength → recovery_tool
+            var catOrder = new Dictionary<string, int> { ["warmup_tool"] = 0, ["mobility"] = 1, ["strength"] = 2, ["recovery_tool"] = 3 };
+            result.Sort((a, b) => catOrder.GetValueOrDefault(a.category, 9).CompareTo(catOrder.GetValueOrDefault(b.category, 9)));
+
+            return result;
         }
     }
 }

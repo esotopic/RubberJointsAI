@@ -179,3 +179,15 @@ public class UserDailyPlanEntry
     public bool AiAdjusted { get; set; }
     public bool IsManual { get; set; }
 }
+
+// ── User Preferences (onboarding + equipment) ──
+
+public class UserPreferences
+{
+    public string UserId { get; set; } = "";
+    public bool HasGym { get; set; }
+    public int DaysPerWeek { get; set; } = 3;
+    public int OnboardingStep { get; set; } // 0=welcome, 1=gym done, 2=days done, 3=warmup done, 4=mobility done, 5=recovery done, 6=supplements done, 7=complete
+    public string SelectedExercises { get; set; } = ""; // comma-separated exercise IDs
+    public string SelectedSupplements { get; set; } = ""; // comma-separated supplement IDs
+}

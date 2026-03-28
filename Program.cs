@@ -82,10 +82,34 @@ app.UseAuthorization();
 // The Today page is accessed via "/Index" (nav links, date links all use /Index).
 app.Use(async (context, next) =>
 {
-    if (context.Request.Path == "/" && context.User.Identity?.IsAuthenticated == true)
+    if (context.User.Identity?.IsAuthenticated == true)
     {
-        context.Response.Redirect("/AI");
-        return;
+        var path = context.Request.Path.Value ?? "";
+
+        // Redirect bare "/" to AI page
+        if (path == "/")
+        {
+            context.Response.Redirect("/AI");
+            return;
+        }
+
+        // During onboarding, lock all pages except AI, Login, Logout, and API endpoints
+        var lockedPaths = new[] { "/Index", "/Week", "/Progress", "/Settings" };
+        if (lockedPaths.Any(lp => path.Equals(lp, StringComparison.OrdinalIgnoreCase)))
+        {
+            var repo = context.RequestServices.GetRequiredService<RubberJointsAI.Data.RubberJointsAIRepository>();
+            var uid = context.User.Identity?.Name ?? "default";
+            try
+            {
+                var prefs = await repo.GetUserPreferencesAsync(uid);
+                if (prefs == null || prefs.OnboardingStep < 7)
+                {
+                    context.Response.Redirect("/AI");
+                    return;
+                }
+            }
+            catch { /* allow through on DB error */ }
+        }
     }
     await next();
 });
@@ -404,232 +428,509 @@ app.MapPost("/api/logsession", async (HttpContext context, RubberJointsAIReposit
     }
 });
 
-// ── AI Chat endpoint - calls Anthropic Claude API with full program context ──
+// ── AI Chat endpoint - handles onboarding (state machine) + ongoing management (tool use) ──
 app.MapPost("/api/ai/chat", async (HttpContext context, RubberJointsAIRepository repository, IHttpClientFactory httpFactory, IConfiguration config) =>
 {
     if (context.User.Identity?.IsAuthenticated != true)
         return Results.Unauthorized();
 
     string userId = context.User.Identity?.Name ?? "default";
-    string todayDate = DateTime.UtcNow.ToString("yyyy-MM-dd");
-    string dayOfWeek = DateTime.UtcNow.DayOfWeek.ToString();
+    var pst = TimeZoneInfo.FindSystemTimeZoneById("America/Los_Angeles");
+    var pacificNow = TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, pst);
+    string todayDate = pacificNow.ToString("yyyy-MM-dd");
+    string dayOfWeek = pacificNow.DayOfWeek.ToString();
 
     try
     {
-        // Parse user message
         using var doc = await JsonDocument.ParseAsync(context.Request.Body);
         var root = doc.RootElement;
-        string userMessage = root.GetProperty("message").GetString() ?? "";
-        if (string.IsNullOrWhiteSpace(userMessage))
-            return Results.Json(new { success = false, error = "Empty message" }, statusCode: 400);
+        string userMessage = root.TryGetProperty("message", out var mp) ? mp.GetString() ?? "" : "";
 
-        // ── Gather full program context for the system prompt ──
-
-        // 1. Enrollment & week
-        var enrollment = await repository.GetActiveEnrollmentAsync(userId);
-        string enrollmentInfo = "No active enrollment.";
-        int week = 1;
-        int totalWeeks = 4;
-        if (enrollment != null)
+        // Parse conversation history
+        var history = new List<object>();
+        if (root.TryGetProperty("history", out var hp) && hp.ValueKind == JsonValueKind.Array)
         {
-            var enrollStart = DateTime.Parse(enrollment.StartDate);
-            int daysSince = (DateTime.UtcNow.Date - enrollStart.Date).Days;
-            week = Math.Max(1, daysSince / 7 + 1);
-            enrollmentInfo = $"Program: {enrollment.ProgramName}, Started: {enrollment.StartDate}, Week {week} of {totalWeeks}";
+            foreach (var h in hp.EnumerateArray())
+            {
+                string role = h.GetProperty("role").GetString() ?? "user";
+                string content = h.GetProperty("content").GetString() ?? "";
+                history.Add(new { role, content });
+            }
         }
 
-        // 2. Today's daily plan
-        var planEntries = await repository.GetUserDailyPlanAsync(userId, todayDate);
-        var allExercises = await repository.GetAllExercisesAsync();
-        var exerciseMap = allExercises.ToDictionary(e => e.Id, e => e);
-        var settings = await repository.GetUserSettingsAsync(userId);
-        var disabledIds = (settings?.DisabledTools ?? "").Split(',', StringSplitOptions.RemoveEmptyEntries).ToHashSet();
-
-        string dayType = planEntries.FirstOrDefault()?.DayType ?? "unknown";
-        var todaySteps = planEntries
-            .Where(p => !disabledIds.Contains(p.ExerciseId))
-            .Select(p => {
-                var ex = exerciseMap.GetValueOrDefault(p.ExerciseId);
-                return new { Name = ex?.Name ?? p.ExerciseId, Category = p.Category, Rx = p.Rx ?? ex?.DefaultRx ?? "", Targets = ex?.Targets ?? "" };
-            }).ToList();
-
-        // 3. Today's completion status
-        var dailyChecks = await repository.GetDailyChecksAsync(userId, todayDate);
-        var completedIds = dailyChecks.Where(c => c.Checked && c.ItemType == "step").Select(c => c.ItemId).ToHashSet();
-        int totalExercises = todaySteps.Count;
-        int completedExercises = todaySteps.Count(s => completedIds.Contains(exerciseMap.FirstOrDefault(e => e.Value.Name == s.Name).Key ?? ""));
-
-        // 4. Supplements status
-        var supplements = await repository.GetUserSupplementsForDateAsync(userId, todayDate);
-        var suppChecks = dailyChecks.Where(c => c.ItemType == "supplement").ToList();
-        int totalSupps = supplements.Count;
-        int completedSupps = suppChecks.Count(c => c.Checked);
-
-        // 5. Milestones
-        var milestones = await repository.GetUserMilestonesAsync(userId);
-        int totalMilestones = milestones.Count;
-        int completedMilestones = milestones.Count(m => !string.IsNullOrEmpty(m.AchievedDate));
-
-        // 6. Session history (last 7 days)
-        var sessionLogs = await repository.GetSessionLogsAsync(userId);
-        var recentSessions = sessionLogs.OrderByDescending(s => s.Date).Take(7).ToList();
-
-        // ── Build the system prompt ──
-        var sb = new StringBuilder();
-
-        // === IDENTITY & PURPOSE ===
-        sb.AppendLine("You are the AI Coach inside RubberJointsAI — a mobile-first web application that guides users through a structured 4-week mobility and joint health program.");
-        sb.AppendLine();
-        sb.AppendLine("=== WHAT THIS APPLICATION DOES ===");
-        sb.AppendLine("RubberJointsAI is a daily mobility training tracker. Each user is enrolled in a 28-day program that assigns exercises to each day based on a rotating schedule of gym days, home days, recovery days, and rest days.");
-        sb.AppendLine("The app tracks:");
-        sb.AppendLine("- Daily exercises: organized by category (warmup tools, mobility drills, strength moves, recovery tools). Each exercise has a name, target body areas, prescribed reps/duration (Rx), description, cues, and optional warnings.");
-        sb.AppendLine("- Supplements: the user takes supplements at specific times of day (AM, midday, PM) with prescribed doses.");
-        sb.AppendLine("- Milestones: achievement goals the user works toward over the program (e.g., 'Touch toes', 'Full squat hold 60s').");
-        sb.AppendLine("- Session logs: daily completion records showing how many exercises the user finished each day.");
-        sb.AppendLine("- The user checks off exercises and supplements throughout the day, and the app logs their session progress.");
-        sb.AppendLine();
-
-        // === TONE & BEHAVIOR ===
-        sb.AppendLine("=== YOUR TONE AND BEHAVIOR ===");
-        sb.AppendLine("- Be warm, human, and conversational — like a knowledgeable friend who happens to know a lot about mobility work. Not robotic. Not overly formal.");
-        sb.AppendLine("- Keep responses concise: 2-4 short paragraphs max. Users are on mobile. Don't write essays.");
-        sb.AppendLine("- Use the user's name when it feels natural (their name is shown below).");
-        sb.AppendLine("- Be encouraging without being cheesy. Acknowledge effort. Be honest about gaps.");
-        sb.AppendLine("- When referencing exercises, use their actual names from the data below. NEVER invent exercises, supplements, or data that isn't provided.");
-        sb.AppendLine();
-
-        // === STRICT BOUNDARIES ===
-        sb.AppendLine("=== ABSOLUTE RULES — NO EXCEPTIONS ===");
-        sb.AppendLine("1. ONLY answer questions related to: this app, the user's mobility program, their exercises, supplements, milestones, progress, joint health, mobility concepts, and general recovery/stretching guidance.");
-        sb.AppendLine("2. If the user asks about ANYTHING unrelated — politics, coding, recipes, weather, news, math, trivia, other apps — respond ONLY with: \"I'm your mobility coach and can only help with your RubberJointsAI program — exercises, supplements, progress, and joint health. What would you like to know about your plan?\"");
-        sb.AppendLine("3. Do NOT act as a doctor, certified fitness trainer, physical therapist, or nutritionist. You are an AI assistant providing information based on the user's program data.");
-        sb.AppendLine("4. Do NOT diagnose injuries or medical conditions. If the user describes pain or injury, advise them to consult a healthcare professional.");
-        sb.AppendLine("5. NEVER fabricate exercise data, supplement information, or progress stats. Only reference what is in the data below.");
-        sb.AppendLine();
-
-        // === COMMON QUESTIONS YOU SHOULD HANDLE WELL ===
-        sb.AppendLine("=== TYPES OF QUESTIONS TO EXPECT ===");
-        sb.AppendLine("Users will commonly ask things like:");
-        sb.AppendLine("- 'Where am I in my program?' → Give a status update using enrollment, week, and today's completion data.");
-        sb.AppendLine("- 'Why was this exercise chosen?' → Explain based on the exercise's targets, category, and where it fits in the program structure.");
-        sb.AppendLine("- 'Can I skip an exercise today?' → Tell them which exercises are in today's plan and advise on which might be safe to skip vs. which are important. Reference targets.");
-        sb.AppendLine("- 'What should I focus on today?' → Prioritize based on what's incomplete and what targets are most important.");
-        sb.AppendLine("- 'I'm sore / feeling tired' → Suggest modifications, lighter alternatives from their plan, or recommend focusing on recovery exercises.");
-        sb.AppendLine("- 'How are my supplements?' → Show what they're taking, when, and what's been checked off today.");
-        sb.AppendLine("- 'What milestones am I close to?' → Review milestone status and encourage.");
-        sb.AppendLine("- 'What's coming up this week / next week?' → Explain the program structure (rotating gym/home/recovery/rest days) and what to expect.");
-        sb.AppendLine();
-
-        // === PROGRAM STRUCTURE (what's expected from now to end) ===
-        sb.AppendLine("=== PROGRAM STRUCTURE & EXPECTATIONS ===");
-        sb.AppendLine($"The program is {totalWeeks} weeks long (28 days). The user is currently in Week {week}.");
-        sb.AppendLine("Week structure: The program alternates between gym days (full equipment), home days (bodyweight/light tools), recovery days (foam rolling, gentle stretching), and rest days.");
-        sb.AppendLine("Phase 1 (Weeks 1-2): Foundation — building baseline mobility, learning movement patterns, establishing supplement habits.");
-        sb.AppendLine("Phase 2 (Weeks 3-4): Progression — increased intensity, deeper stretches, more demanding strength work, targeting milestone achievements.");
-        int remainingDays = Math.Max(0, totalWeeks * 7 - (week - 1) * 7);
-        sb.AppendLine($"Remaining: approximately {remainingDays} days left in the program.");
-        sb.AppendLine("Goal: By program end, the user should have improved joint mobility, established a supplement routine, and achieved their milestone targets.");
-        sb.AppendLine();
-
-        // === LIVE USER DATA ===
-        sb.AppendLine("=== USER DATA (LIVE FROM DATABASE) ===");
-        sb.AppendLine($"User: {userId}");
-        sb.AppendLine($"Today: {dayOfWeek}, {todayDate}");
-        sb.AppendLine($"Enrollment: {enrollmentInfo}");
-        sb.AppendLine($"Today's session type: {dayType}");
-        sb.AppendLine();
-
-        sb.AppendLine("--- TODAY'S EXERCISES ---");
-        var grouped = todaySteps.GroupBy(s => s.Category);
-        foreach (var g in grouped)
+        // Parse onboarding selection if provided
+        int? selectionStep = null;
+        JsonElement selectionData = default;
+        if (root.TryGetProperty("selection", out var sp) && sp.ValueKind == JsonValueKind.Object)
         {
-            sb.AppendLine($"[{g.Key.ToUpper()}]");
-            foreach (var s in g)
-                sb.AppendLine($"  - {s.Name} | Targets: {s.Targets} | Rx: {s.Rx}");
-        }
-        sb.AppendLine($"Progress: {completedExercises} of {totalExercises} exercises completed today.");
-        sb.AppendLine();
-
-        sb.AppendLine("--- ALL EXERCISES IN THE PROGRAM (with details) ---");
-        foreach (var ex in allExercises)
-        {
-            sb.AppendLine($"  - {ex.Name} [{ex.Category}] | Targets: {ex.Targets} | Rx: {ex.DefaultRx ?? "varies"} | Description: {ex.Description}");
-            if (!string.IsNullOrEmpty(ex.Cues))
-                sb.AppendLine($"    Cues: {ex.Cues.Replace("|", ", ")}");
-            if (!string.IsNullOrEmpty(ex.Warning))
-                sb.AppendLine($"    Warning: {ex.Warning}");
-        }
-        sb.AppendLine();
-
-        sb.AppendLine("--- SUPPLEMENTS ---");
-        foreach (var s in supplements)
-            sb.AppendLine($"  - {s.Name} | Dose: {s.Dose} | Time: {s.Time} | Group: {s.TimeGroup}");
-        sb.AppendLine($"Supplements taken today: {completedSupps} of {totalSupps}");
-        sb.AppendLine();
-
-        sb.AppendLine("--- MILESTONES ---");
-        foreach (var m in milestones)
-        {
-            string status = string.IsNullOrEmpty(m.AchievedDate) ? "Not yet achieved" : $"Achieved on {m.AchievedDate}";
-            sb.AppendLine($"  - {m.Name}: {status}");
-        }
-        sb.AppendLine($"Milestones completed: {completedMilestones} of {totalMilestones}");
-        sb.AppendLine();
-
-        sb.AppendLine("--- SESSION HISTORY (last 7 days) ---");
-        if (recentSessions.Any())
-        {
-            foreach (var log in recentSessions)
-                sb.AppendLine($"  - {log.Date}: {log.StepsDone}/{log.StepsTotal} exercises ({(log.StepsTotal > 0 ? (log.StepsDone * 100 / log.StepsTotal) : 0)}% completion)");
-        }
-        else
-        {
-            sb.AppendLine("  No sessions logged yet — this may be a new user or early in their program.");
+            selectionStep = sp.GetProperty("step").GetInt32();
+            selectionData = sp.GetProperty("data");
         }
 
-        string systemPrompt = sb.ToString();
+        // Get user preferences (onboarding state)
+        var prefs = await repository.GetUserPreferencesAsync(userId);
+        bool isOnboarding = prefs == null || prefs.OnboardingStep < 7;
 
-        // ── Call Anthropic Claude API ──
         string apiKey = config["Anthropic:ApiKey"] ?? "";
         if (string.IsNullOrEmpty(apiKey))
             return Results.Json(new { success = false, error = "AI not configured" }, statusCode: 500);
 
-        var client = httpFactory.CreateClient("Anthropic");
-        client.DefaultRequestHeaders.Add("x-api-key", apiKey);
-
-        var requestBody = new
+        // ═══════════════════════════════════════════════════════════
+        //  ONBOARDING MODE
+        // ═══════════════════════════════════════════════════════════
+        if (isOnboarding)
         {
-            model = "claude-haiku-4-5-20251001",
-            max_tokens = 800,
-            system = systemPrompt,
-            messages = new[] { new { role = "user", content = userMessage } }
+            if (prefs == null)
+                prefs = new RubberJointsAI.Models.UserPreferences { UserId = userId, OnboardingStep = 0 };
+
+            // Process selection if provided
+            if (selectionStep.HasValue)
+            {
+                switch (selectionStep.Value)
+                {
+                    case 0: // gym selection
+                        prefs.HasGym = selectionData.GetProperty("has_gym").GetBoolean();
+                        prefs.OnboardingStep = 1;
+                        break;
+                    case 1: // days selection
+                        prefs.DaysPerWeek = selectionData.GetProperty("days_per_week").GetInt32();
+                        prefs.OnboardingStep = 2;
+                        break;
+                    case 2: // warmup exercises
+                        var warmupIds = new List<string>();
+                        foreach (var id in selectionData.GetProperty("exercise_ids").EnumerateArray())
+                            warmupIds.Add(id.GetString() ?? "");
+                        prefs.SelectedExercises = string.Join(",", warmupIds);
+                        prefs.OnboardingStep = 3;
+                        break;
+                    case 3: // mobility exercises
+                        var existingExIds = prefs.SelectedExercises.Split(',', StringSplitOptions.RemoveEmptyEntries).ToList();
+                        foreach (var id in selectionData.GetProperty("exercise_ids").EnumerateArray())
+                        {
+                            var eid = id.GetString() ?? "";
+                            if (!existingExIds.Contains(eid)) existingExIds.Add(eid);
+                        }
+                        prefs.SelectedExercises = string.Join(",", existingExIds);
+                        prefs.OnboardingStep = 4;
+                        break;
+                    case 4: // recovery exercises
+                        var exIds2 = prefs.SelectedExercises.Split(',', StringSplitOptions.RemoveEmptyEntries).ToList();
+                        foreach (var id in selectionData.GetProperty("exercise_ids").EnumerateArray())
+                        {
+                            var eid = id.GetString() ?? "";
+                            if (!exIds2.Contains(eid)) exIds2.Add(eid);
+                        }
+                        prefs.SelectedExercises = string.Join(",", exIds2);
+                        prefs.OnboardingStep = 5;
+                        break;
+                    case 5: // supplements
+                        var suppIds = new List<string>();
+                        foreach (var id in selectionData.GetProperty("supplement_ids").EnumerateArray())
+                            suppIds.Add(id.GetString() ?? "");
+                        prefs.SelectedSupplements = string.Join(",", suppIds);
+                        prefs.OnboardingStep = 6;
+                        break;
+                    case 6: // confirm + generate plan
+                        prefs.OnboardingStep = 7;
+                        await repository.SaveUserPreferencesAsync(prefs);
+                        await repository.GenerateCustomPlanAsync(userId, prefs);
+                        // Return completion response
+                        var completionPrompt = $"You are the AI Coach inside RubberJointsAI. The user '{userId}' just completed onboarding. Their plan has been generated: {prefs.DaysPerWeek} days/week, {(prefs.HasGym ? "gym access" : "home only")}, {prefs.SelectedExercises.Split(',').Length} exercises, {prefs.SelectedSupplements.Split(',').Length} supplements. Celebrate! Keep it to 2-3 sentences. Make a funny joint/mobility joke. Tell them to tap START TRAINING to begin.";
+                        var completionText = await CallClaudeAsync(httpFactory, apiKey, completionPrompt, "The plan is ready!", history);
+                        return Results.Json(new { success = true, response = completionText, onboarding_step = 7, onboarding_complete = true });
+                }
+                await repository.SaveUserPreferencesAsync(prefs);
+            }
+
+            // Build onboarding system prompt for current step
+            int step = prefs.OnboardingStep;
+            var allExercises = await repository.GetAllExercisesAsync();
+
+            string stepContext = step switch
+            {
+                0 => "Welcome the user! This is their very first time. Ask if they have access to a gym. Keep it to 2-3 sentences max. Make a funny joint/mobility joke.",
+                1 => $"User has gym access: {prefs.HasGym}. Now ask how many days per week they want to train (2-6). Keep it brief, 2-3 sentences. Drop a joke.",
+                2 => $"User trains {prefs.DaysPerWeek} days/week with {(prefs.HasGym ? "gym access" : "home only")}. Introduce warm-up exercises. Say something fun about warming up. The app will show exercise cards below — just introduce the step in 2 sentences.",
+                3 => "Now introduce mobility exercises. These are the CORE of the program. Get them excited about improving their range of motion. 2-3 sentences, be fun.",
+                4 => $"Now introduce recovery tools{(prefs.HasGym ? " (they have gym access so they may have saunas, compression boots etc)" : " (home-based recovery)")}. Quick and fun, 2 sentences.",
+                5 => "Now introduce supplements. These support joint health and recovery. Keep it light — 2 sentences.",
+                6 => "Summarize their selections and tell them you're about to generate their custom plan. Build excitement! 2 sentences.",
+                _ => "Onboarding complete."
+            };
+
+            string onboardingSystemPrompt = $@"You are the AI Coach inside RubberJointsAI — a fun, warm mobility app.
+The user '{userId}' is going through initial setup (onboarding step {step} of 7).
+
+YOUR JOB: {stepContext}
+
+RULES:
+- Keep responses SHORT (2-3 sentences max). Mobile users.
+- Be warm, funny, encouraging. Joint/mobility humor is great.
+- The app shows interactive UI below your message — do NOT list exercises or options.
+- Do NOT use bullet points or numbered lists.
+- Do NOT say 'I' or refer to yourself excessively.";
+
+            // Get Claude text for this step
+            string aiResponse = await CallClaudeAsync(httpFactory, apiKey, onboardingSystemPrompt,
+                string.IsNullOrEmpty(userMessage) ? "Let's go!" : userMessage, history);
+
+            // Build UI component for current step
+            object? uiComponent = null;
+            switch (step)
+            {
+                case 0:
+                    uiComponent = new { type = "choice", id = "gym_access", options = new[] {
+                        new { id = "gym", label = "🏋️ I Go to a Gym", description = "Access to gym equipment", value = true },
+                        new { id = "home", label = "🏠 Home Only", description = "Bodyweight & home tools", value = false }
+                    }};
+                    break;
+                case 1:
+                    uiComponent = new { type = "choice", id = "days_per_week", options = new object[] {
+                        new { id = "2", label = "2 Days", value = 2 },
+                        new { id = "3", label = "3 Days", value = 3 },
+                        new { id = "4", label = "4 Days", value = 4 },
+                        new { id = "5", label = "5 Days", value = 5 },
+                        new { id = "6", label = "6 Days", value = 6 }
+                    }};
+                    break;
+                case 2: // warmup exercises
+                    uiComponent = new { type = "exercise_picker", id = "warmup", category = "Warm-Up",
+                        exercises = allExercises.Where(e => e.Category == "warmup_tool").Select(e => new {
+                            id = e.Id, name = e.Name, description = e.Targets, rx = e.DefaultRx ?? ""
+                        })
+                    };
+                    break;
+                case 3: // mobility exercises
+                    uiComponent = new { type = "exercise_picker", id = "mobility", category = "Mobility",
+                        exercises = allExercises.Where(e => e.Category == "mobility").Select(e => new {
+                            id = e.Id, name = e.Name, description = e.Targets, rx = e.DefaultRx ?? ""
+                        })
+                    };
+                    break;
+                case 4: // recovery tools
+                    uiComponent = new { type = "exercise_picker", id = "recovery", category = "Recovery",
+                        exercises = allExercises.Where(e => e.Category == "recovery_tool" || e.Category == "strength").Select(e => new {
+                            id = e.Id, name = e.Name, description = e.Targets, rx = e.DefaultRx ?? "",
+                            category_label = e.Category == "strength" ? "💪 Strength" : "🧊 Recovery"
+                        })
+                    };
+                    break;
+                case 5: // supplements
+                    var allSupps = new List<object>();
+                    using (var conn = new Microsoft.Data.SqlClient.SqlConnection(builder.Configuration.GetConnectionString("DefaultConnection") ?? ""))
+                    {
+                        await conn.OpenAsync();
+                        using var cmd = conn.CreateCommand();
+                        cmd.CommandText = "SELECT Id, Name, Dose, Time, TimeGroup FROM Supplements ORDER BY CASE TimeGroup WHEN 'am' THEN 0 WHEN 'mid' THEN 1 WHEN 'pm' THEN 2 END, Name";
+                        using var reader = await cmd.ExecuteReaderAsync();
+                        while (await reader.ReadAsync())
+                        {
+                            allSupps.Add(new {
+                                id = reader.GetString(0), name = reader.GetString(1),
+                                dose = reader.IsDBNull(2) ? "" : reader.GetString(2),
+                                time = reader.IsDBNull(3) ? "" : reader.GetString(3),
+                                timeGroup = reader.IsDBNull(4) ? "am" : reader.GetString(4)
+                            });
+                        }
+                    }
+                    uiComponent = new { type = "supplement_picker", id = "supplements", supplements = allSupps };
+                    break;
+                case 6: // confirmation
+                    var selectedExNames = allExercises
+                        .Where(e => (prefs.SelectedExercises ?? "").Split(',').Contains(e.Id))
+                        .Select(e => e.Name).ToList();
+                    uiComponent = new { type = "confirmation", id = "confirm",
+                        summary = new {
+                            gym = prefs.HasGym, days = prefs.DaysPerWeek,
+                            exercises = selectedExNames.Count,
+                            exercise_names = selectedExNames
+                        }
+                    };
+                    break;
+            }
+
+            return Results.Json(new { success = true, response = aiResponse, onboarding_step = step, ui_component = uiComponent });
+        }
+
+        // ═══════════════════════════════════════════════════════════
+        //  REGULAR CHAT MODE (with tool use for ongoing management)
+        // ═══════════════════════════════════════════════════════════
+        var enrollment = await repository.GetActiveEnrollmentAsync(userId);
+        string enrollmentInfo = "No active enrollment.";
+        int week2 = 1, totalWeeks2 = 4;
+        if (enrollment != null)
+        {
+            var enrollStart = DateTime.Parse(enrollment.StartDate);
+            int daysSince = (pacificNow.Date - enrollStart.Date).Days;
+            week2 = Math.Max(1, daysSince / 7 + 1);
+            enrollmentInfo = $"Program: {enrollment.ProgramName}, Started: {enrollment.StartDate}, Week {week2} of {totalWeeks2}";
+        }
+
+        var planEntries2 = await repository.GetUserDailyPlanAsync(userId, todayDate);
+        var allExercises2 = await repository.GetAllExercisesAsync();
+        var exerciseMap2 = allExercises2.ToDictionary(e => e.Id, e => e);
+        var settings2 = await repository.GetUserSettingsAsync(userId);
+        var disabledIds2 = (settings2?.DisabledTools ?? "").Split(',', StringSplitOptions.RemoveEmptyEntries).ToHashSet();
+
+        string dayType2 = planEntries2.FirstOrDefault()?.DayType ?? "unknown";
+        var todaySteps2 = planEntries2.Where(p => !disabledIds2.Contains(p.ExerciseId))
+            .Select(p => { var ex = exerciseMap2.GetValueOrDefault(p.ExerciseId);
+                return new { Name = ex?.Name ?? p.ExerciseId, Category = p.Category, Rx = p.Rx ?? ex?.DefaultRx ?? "", Targets = ex?.Targets ?? "" };
+            }).ToList();
+
+        var dailyChecks2 = await repository.GetDailyChecksAsync(userId, todayDate);
+        var completedIds2 = dailyChecks2.Where(c => c.Checked && c.ItemType == "step").Select(c => c.ItemId).ToHashSet();
+        int totalExercises2 = todaySteps2.Count;
+        int completedExercises2 = todaySteps2.Count(s => completedIds2.Contains(exerciseMap2.FirstOrDefault(e => e.Value.Name == s.Name).Key ?? ""));
+
+        var supplements2 = await repository.GetUserSupplementsForDateAsync(userId, todayDate);
+        int completedSupps2 = dailyChecks2.Count(c => c.ItemType == "supplement" && c.Checked);
+
+        var milestones2 = await repository.GetUserMilestonesAsync(userId);
+        var sessionLogs2 = await repository.GetSessionLogsAsync(userId);
+        var recentSessions2 = sessionLogs2.OrderByDescending(s => s.Date).Take(7).ToList();
+
+        var sb2 = new StringBuilder();
+        sb2.AppendLine("You are the AI Coach inside RubberJointsAI — a mobile-first web application that guides users through a structured 4-week mobility and joint health program.");
+        sb2.AppendLine();
+        sb2.AppendLine("=== YOUR TONE AND BEHAVIOR ===");
+        sb2.AppendLine("- Be warm, human, and conversational. Keep responses concise: 2-4 short paragraphs max. Mobile users.");
+        sb2.AppendLine($"- User's name: {userId}. Use it when natural.");
+        sb2.AppendLine("- Be encouraging without being cheesy. Acknowledge effort. Be honest about gaps.");
+        sb2.AppendLine("- NEVER invent exercises, supplements, or data that isn't in the context below.");
+        sb2.AppendLine();
+        sb2.AppendLine("=== ABSOLUTE RULES ===");
+        sb2.AppendLine("1. ONLY answer about: this app, exercises, supplements, milestones, progress, joint health, mobility, recovery/stretching.");
+        sb2.AppendLine("2. For ANYTHING unrelated: \"I'm your mobility coach and can only help with your RubberJointsAI program — exercises, supplements, progress, and joint health. What would you like to know about your plan?\"");
+        sb2.AppendLine("3. Never act as doctor/trainer/PT. Never diagnose injuries.");
+        sb2.AppendLine();
+
+        // === TOOL USE INSTRUCTIONS ===
+        sb2.AppendLine("=== TOOL USE ===");
+        sb2.AppendLine("You have tools to modify the user's plan. Use them when the user asks to add/remove exercises, change supplements, or adjust their schedule.");
+        sb2.AppendLine("After using a tool, confirm what changed in a friendly way.");
+        sb2.AppendLine("When adding exercises, use get_all_exercises first to see what's available.");
+        sb2.AppendLine();
+
+        sb2.AppendLine("=== LIVE USER DATA ===");
+        sb2.AppendLine($"User: {userId} | Today: {dayOfWeek}, {todayDate} | Enrollment: {enrollmentInfo} | Session type: {dayType2}");
+        sb2.AppendLine();
+
+        sb2.AppendLine("--- TODAY'S EXERCISES ---");
+        foreach (var g in todaySteps2.GroupBy(s => s.Category))
+        {
+            sb2.AppendLine($"[{g.Key.ToUpper()}]");
+            foreach (var s in g) sb2.AppendLine($"  - {s.Name} | {s.Targets} | {s.Rx}");
+        }
+        sb2.AppendLine($"Progress: {completedExercises2}/{totalExercises2} done.");
+        sb2.AppendLine();
+
+        sb2.AppendLine("--- ALL EXERCISES ---");
+        foreach (var ex in allExercises2)
+            sb2.AppendLine($"  - {ex.Name} [{ex.Category}] | {ex.Targets} | {ex.DefaultRx ?? "varies"}");
+        sb2.AppendLine();
+
+        sb2.AppendLine("--- SUPPLEMENTS ---");
+        foreach (var s in supplements2)
+            sb2.AppendLine($"  - {s.Name} | {s.Dose} | {s.Time} | {s.TimeGroup}");
+        sb2.AppendLine($"Taken today: {completedSupps2}/{supplements2.Count}");
+        sb2.AppendLine();
+
+        sb2.AppendLine("--- MILESTONES ---");
+        foreach (var m in milestones2)
+            sb2.AppendLine($"  - {m.Name}: {(string.IsNullOrEmpty(m.AchievedDate) ? "Not yet" : m.AchievedDate)}");
+        sb2.AppendLine();
+
+        sb2.AppendLine("--- SESSION HISTORY (7 days) ---");
+        foreach (var log in recentSessions2)
+            sb2.AppendLine($"  - {log.Date}: {log.StepsDone}/{log.StepsTotal}");
+
+        string systemPrompt2 = sb2.ToString();
+
+        // Define tools for ongoing management
+        var tools = new object[]
+        {
+            new { name = "get_all_exercises", description = "Get all available exercises in the system, optionally filtered by category",
+                input_schema = new { type = "object", properties = new { category = new { type = "string", description = "Optional: warmup_tool, mobility, strength, recovery_tool" } } } },
+            new { name = "add_exercise_to_plan", description = "Add an exercise to the user's plan from today going forward",
+                input_schema = new { type = "object", properties = new { exercise_id = new { type = "string" }, category = new { type = "string" } },
+                    required = new[] { "exercise_id", "category" } } },
+            new { name = "remove_exercise_from_plan", description = "Remove an exercise from the user's future plan days",
+                input_schema = new { type = "object", properties = new { exercise_id = new { type = "string" } }, required = new[] { "exercise_id" } } },
+            new { name = "add_supplement", description = "Add a supplement to the user's daily routine",
+                input_schema = new { type = "object", properties = new { supplement_id = new { type = "string" }, time_group = new { type = "string", description = "am, mid, or pm" } },
+                    required = new[] { "supplement_id", "time_group" } } },
+            new { name = "remove_supplement", description = "Remove a supplement from the user's routine",
+                input_schema = new { type = "object", properties = new { supplement_id = new { type = "string" } }, required = new[] { "supplement_id" } } },
+            new { name = "get_all_supplements", description = "Get all available supplements in the system",
+                input_schema = new { type = "object", properties = new { } } },
+            new { name = "update_training_days", description = "Change how many days per week the user trains and regenerate plan",
+                input_schema = new { type = "object", properties = new { days_per_week = new { type = "integer" } }, required = new[] { "days_per_week" } } }
         };
 
-        var jsonContent = new StringContent(
-            JsonSerializer.Serialize(requestBody),
-            Encoding.UTF8,
-            "application/json");
+        // Build messages array
+        var messages = new List<object>();
+        foreach (var h in history)
+            messages.Add(h);
+        if (!string.IsNullOrWhiteSpace(userMessage))
+            messages.Add(new { role = "user", content = userMessage });
 
-        var response = await client.PostAsync("v1/messages", jsonContent);
-        var responseBody = await response.Content.ReadAsStringAsync();
+        if (messages.Count == 0)
+            return Results.Json(new { success = false, error = "No message" }, statusCode: 400);
 
-        if (!response.IsSuccessStatusCode)
-        {
-            app.Logger.LogError("Anthropic API error: {Status} {Body}", response.StatusCode, responseBody);
-            return Results.Json(new { success = false, error = $"AI error: {response.StatusCode}" }, statusCode: 500);
-        }
-
-        using var responseDoc = JsonDocument.Parse(responseBody);
-        var content = responseDoc.RootElement.GetProperty("content");
+        // Tool use loop
+        var client = httpFactory.CreateClient("Anthropic");
+        client.DefaultRequestHeaders.Add("x-api-key", apiKey);
         string aiText = "";
-        foreach (var block in content.EnumerateArray())
+        int maxLoops = 5;
+
+        for (int loop = 0; loop < maxLoops; loop++)
         {
-            if (block.GetProperty("type").GetString() == "text")
-                aiText += block.GetProperty("text").GetString();
+            var requestBody = new
+            {
+                model = "claude-haiku-4-5-20251001",
+                max_tokens = 1024,
+                system = systemPrompt2,
+                tools,
+                messages
+            };
+
+            var jsonContent = new StringContent(JsonSerializer.Serialize(requestBody), Encoding.UTF8, "application/json");
+            var response = await client.PostAsync("v1/messages", jsonContent);
+            var responseBody = await response.Content.ReadAsStringAsync();
+
+            if (!response.IsSuccessStatusCode)
+            {
+                app.Logger.LogError("Anthropic API error: {Status} {Body}", response.StatusCode, responseBody);
+                return Results.Json(new { success = false, error = $"AI error: {response.StatusCode}" }, statusCode: 500);
+            }
+
+            using var responseDoc = JsonDocument.Parse(responseBody);
+            var responseRoot = responseDoc.RootElement;
+            string stopReason = responseRoot.GetProperty("stop_reason").GetString() ?? "";
+            var contentBlocks = responseRoot.GetProperty("content");
+
+            // Extract text and tool_use blocks
+            var textParts = new List<string>();
+            var toolUseCalls = new List<(string id, string name, JsonElement input)>();
+            var assistantContentBlocks = new List<object>();
+
+            foreach (var block in contentBlocks.EnumerateArray())
+            {
+                string blockType = block.GetProperty("type").GetString() ?? "";
+                if (blockType == "text")
+                {
+                    string t = block.GetProperty("text").GetString() ?? "";
+                    textParts.Add(t);
+                    assistantContentBlocks.Add(new { type = "text", text = t });
+                }
+                else if (blockType == "tool_use")
+                {
+                    string toolId = block.GetProperty("id").GetString() ?? "";
+                    string toolName = block.GetProperty("name").GetString() ?? "";
+                    var toolInput = block.GetProperty("input");
+                    toolUseCalls.Add((toolId, toolName, toolInput));
+                    assistantContentBlocks.Add(new { type = "tool_use", id = toolId, name = toolName, input = toolInput });
+                }
+            }
+
+            aiText = string.Join("", textParts);
+
+            if (stopReason != "tool_use" || toolUseCalls.Count == 0)
+                break; // Done — return text
+
+            // Execute tools and continue loop
+            messages.Add(new { role = "assistant", content = assistantContentBlocks });
+
+            var toolResults = new List<object>();
+            foreach (var (toolId, toolName, toolInput) in toolUseCalls)
+            {
+                string toolResult = "Unknown tool";
+                try
+                {
+                    switch (toolName)
+                    {
+                        case "get_all_exercises":
+                            string? catFilter = toolInput.TryGetProperty("category", out var cf) ? cf.GetString() : null;
+                            var exList = allExercises2.Where(e => string.IsNullOrEmpty(catFilter) || e.Category == catFilter)
+                                .Select(e => $"{e.Id}: {e.Name} [{e.Category}] - {e.Targets}");
+                            toolResult = string.Join("\n", exList);
+                            break;
+                        case "add_exercise_to_plan":
+                            string addExId = toolInput.GetProperty("exercise_id").GetString() ?? "";
+                            string addCat = toolInput.GetProperty("category").GetString() ?? "";
+                            int newId = await repository.AddManualPlanEntryWithFutureAsync(userId, todayDate, addExId, addCat);
+                            toolResult = newId > 0 ? $"Added {addExId} to plan successfully." : "Exercise already in plan or failed.";
+                            break;
+                        case "remove_exercise_from_plan":
+                            string rmExId = toolInput.GetProperty("exercise_id").GetString() ?? "";
+                            using (var conn = new Microsoft.Data.SqlClient.SqlConnection(connBuilder.ConnectionString))
+                            {
+                                await conn.OpenAsync();
+                                using var cmd = conn.CreateCommand();
+                                cmd.CommandText = "DELETE FROM UserDailyPlan WHERE UserId = @u AND ExerciseId = @e AND Date >= @d";
+                                cmd.Parameters.AddWithValue("@u", userId);
+                                cmd.Parameters.AddWithValue("@e", rmExId);
+                                cmd.Parameters.AddWithValue("@d", todayDate);
+                                int removed = await cmd.ExecuteNonQueryAsync();
+                                toolResult = $"Removed {rmExId} from {removed} future plan days.";
+                            }
+                            break;
+                        case "add_supplement":
+                            string addSuppId = toolInput.GetProperty("supplement_id").GetString() ?? "";
+                            string addTg = toolInput.GetProperty("time_group").GetString() ?? "am";
+                            bool added = await repository.AddUserSupplementAsync(userId, addSuppId, addTg, todayDate);
+                            toolResult = added ? $"Added supplement {addSuppId} to {addTg} group." : "Supplement already in that time group.";
+                            break;
+                        case "remove_supplement":
+                            string rmSuppId = toolInput.GetProperty("supplement_id").GetString() ?? "";
+                            using (var conn = new Microsoft.Data.SqlClient.SqlConnection(connBuilder.ConnectionString))
+                            {
+                                await conn.OpenAsync();
+                                using var cmd = conn.CreateCommand();
+                                cmd.CommandText = "DELETE FROM UserSupplements WHERE UserId = @u AND SupplementId = @s";
+                                cmd.Parameters.AddWithValue("@u", userId);
+                                cmd.Parameters.AddWithValue("@s", rmSuppId);
+                                int removed = await cmd.ExecuteNonQueryAsync();
+                                toolResult = $"Removed supplement {rmSuppId}.";
+                            }
+                            break;
+                        case "get_all_supplements":
+                            var suppList = new List<string>();
+                            using (var conn = new Microsoft.Data.SqlClient.SqlConnection(connBuilder.ConnectionString))
+                            {
+                                await conn.OpenAsync();
+                                using var cmd = conn.CreateCommand();
+                                cmd.CommandText = "SELECT Id, Name, Dose, TimeGroup FROM Supplements ORDER BY Name";
+                                using var reader = await cmd.ExecuteReaderAsync();
+                                while (await reader.ReadAsync())
+                                    suppList.Add($"{reader.GetString(0)}: {reader.GetString(1)} ({reader.GetString(2)}) [{reader.GetString(3)}]");
+                            }
+                            toolResult = string.Join("\n", suppList);
+                            break;
+                        case "update_training_days":
+                            int newDays = toolInput.GetProperty("days_per_week").GetInt32();
+                            var uprefs = await repository.GetUserPreferencesAsync(userId);
+                            if (uprefs != null)
+                            {
+                                uprefs.DaysPerWeek = newDays;
+                                await repository.SaveUserPreferencesAsync(uprefs);
+                                await repository.GenerateCustomPlanAsync(userId, uprefs);
+                                toolResult = $"Updated to {newDays} days/week and regenerated plan.";
+                            }
+                            else toolResult = "No preferences found.";
+                            break;
+                    }
+                }
+                catch (Exception ex) { toolResult = $"Error: {ex.Message}"; }
+
+                toolResults.Add(new { type = "tool_result", tool_use_id = toolId, content = toolResult });
+            }
+
+            messages.Add(new { role = "user", content = toolResults });
         }
 
-        return Results.Json(new { success = true, response = aiText });
+        return Results.Json(new { success = true, response = aiText, onboarding_step = 7 });
     }
     catch (Exception ex)
     {
@@ -637,5 +938,31 @@ app.MapPost("/api/ai/chat", async (HttpContext context, RubberJointsAIRepository
         return Results.Json(new { success = false, error = ex.Message }, statusCode: 500);
     }
 });
+
+// Helper: Simple Claude call for onboarding text
+async Task<string> CallClaudeAsync(IHttpClientFactory httpFactory, string apiKey, string systemPrompt, string userMessage, List<object> history)
+{
+    var client = httpFactory.CreateClient("Anthropic");
+    client.DefaultRequestHeaders.Add("x-api-key", apiKey);
+
+    var messages = new List<object>();
+    foreach (var h in history) messages.Add(h);
+    messages.Add(new { role = "user", content = userMessage });
+
+    var requestBody = new { model = "claude-haiku-4-5-20251001", max_tokens = 400, system = systemPrompt, messages };
+    var jsonContent = new StringContent(JsonSerializer.Serialize(requestBody), Encoding.UTF8, "application/json");
+    var response = await client.PostAsync("v1/messages", jsonContent);
+    var responseBody = await response.Content.ReadAsStringAsync();
+
+    if (!response.IsSuccessStatusCode) return "Welcome to RubberJointsAI! Let's get you set up.";
+
+    using var responseDoc = JsonDocument.Parse(responseBody);
+    var content = responseDoc.RootElement.GetProperty("content");
+    var text = "";
+    foreach (var block in content.EnumerateArray())
+        if (block.GetProperty("type").GetString() == "text")
+            text += block.GetProperty("text").GetString();
+    return text;
+}
 
 app.Run();

@@ -6,121 +6,121 @@
 }
 
 <style>
-    /* Prevent body/html scrolling on AI page — everything stays in fixed containers */
     html, body { overflow: hidden !important; height: 100% !important; }
+    /* Onboarding UI Components */
+    .ui-choices { display:flex; gap:10px; margin:12px 0 4px; flex-wrap:wrap; }
+    .ui-choice-card { flex:1; min-width:120px; background:var(--card); border:2px solid var(--bdr); border-radius:14px; padding:14px 12px; text-align:center; cursor:pointer; transition:all .2s; }
+    .ui-choice-card:hover, .ui-choice-card:active { border-color:var(--acc); background:rgba(74,108,247,0.08); }
+    .ui-choice-card .choice-label { font-size:15px; font-weight:600; color:var(--tx1); display:block; }
+    .ui-choice-card .choice-desc { font-size:11px; color:var(--tx3); margin-top:2px; display:block; }
+    /* Exercise/Supplement Picker */
+    .ui-picker { margin:12px 0 4px; }
+    .ui-picker-grid { display:flex; flex-wrap:wrap; gap:8px; margin:8px 0; max-height:260px; overflow-y:auto; padding:2px; }
+    .ui-picker-item { background:var(--card); border:2px solid var(--bdr); border-radius:10px; padding:10px 12px; cursor:pointer; transition:all .15s; min-width:calc(50% - 4px); flex:1 1 calc(50% - 4px); box-sizing:border-box; }
+    .ui-picker-item.selected { border-color:var(--acc); background:rgba(74,108,247,0.1); }
+    .ui-picker-item .pick-name { font-size:13px; font-weight:600; color:var(--tx1); display:block; }
+    .ui-picker-item .pick-desc { font-size:11px; color:var(--tx3); display:block; margin-top:1px; }
+    .ui-picker-item .pick-rx { font-size:10px; color:var(--acc); display:block; margin-top:2px; }
+    .ui-picker-item .pick-check { float:right; width:20px; height:20px; border:2px solid var(--bdr); border-radius:6px; margin-top:2px; display:flex; align-items:center; justify-content:center; }
+    .ui-picker-item.selected .pick-check { background:var(--acc); border-color:var(--acc); }
+    .ui-picker-item.selected .pick-check::after { content:'✓'; color:#fff; font-size:12px; font-weight:700; }
+    .ui-picker-confirm { display:block; width:100%; padding:12px; background:var(--acc); color:#fff; border:none; border-radius:12px; font-size:15px; font-weight:600; cursor:pointer; margin-top:10px; }
+    .ui-picker-confirm:disabled { opacity:0.4; cursor:default; }
+    /* Supplement picker groups */
+    .supp-group-label { font-size:11px; font-weight:700; color:var(--tx3); text-transform:uppercase; letter-spacing:0.05em; margin:10px 0 4px; width:100%; }
+    /* Confirmation card */
+    .ui-confirm-card { background:var(--card); border:2px solid var(--acc); border-radius:14px; padding:16px; margin:12px 0 4px; }
+    .ui-confirm-stat { font-size:13px; color:var(--tx2); margin:4px 0; }
+    .ui-confirm-stat strong { color:var(--tx1); }
+    .ui-confirm-btn { display:block; width:100%; padding:14px; background:linear-gradient(135deg, var(--acc), #34c759); color:#fff; border:none; border-radius:12px; font-size:16px; font-weight:700; cursor:pointer; margin-top:12px; letter-spacing:0.02em; }
+    /* Onboarding progress bar */
+    .onboarding-bar { display:flex; gap:3px; padding:8px 16px; }
+    .onboarding-dot { flex:1; height:4px; border-radius:2px; background:var(--bdr); transition:background .3s; }
+    .onboarding-dot.done { background:var(--acc); }
+    .onboarding-dot.active { background:var(--grn); }
 </style>
 
 <div class="ai-container">
-    <!-- Side Panel (conversation history) -->
     <div class="ai-sidebar" id="aiSidebar">
         <div class="ai-sidebar-header">
             <span class="ai-sidebar-title">Chats</span>
-            <button class="ai-sidebar-close" id="closeSidebar">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <line x1="18" y1="6" x2="6" y2="18"></line>
-                    <line x1="6" y1="6" x2="18" y2="18"></line>
-                </svg>
-            </button>
+            <button class="ai-sidebar-close" id="closeSidebar"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg></button>
         </div>
-        <button class="ai-new-chat" id="newChatBtn">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <line x1="12" y1="5" x2="12" y2="19"></line>
-                <line x1="5" y1="12" x2="19" y2="12"></line>
-            </svg>
-            New Chat
-        </button>
-        <div class="ai-chat-list" id="chatList">
-        </div>
+        <button class="ai-new-chat" id="newChatBtn"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg> New Chat</button>
+        <div class="ai-chat-list" id="chatList"></div>
     </div>
-
-    <!-- Overlay for mobile sidebar -->
     <div class="ai-overlay" id="aiOverlay"></div>
 
-    <!-- Main Chat Area -->
     <div class="ai-main">
-        <!-- Combined topbar + status in one row -->
-        @{
-            int progressPct = Model.TotalWeeks > 0 ? (int)((Model.Week - 1) * 100.0 / Model.TotalWeeks) : 0;
-            if (progressPct > 100) progressPct = 100;
+        @if (!Model.IsOnboarding)
+        {
+            @{ int progressPct = Model.TotalWeeks > 0 ? (int)((Model.Week - 1) * 100.0 / Model.TotalWeeks) : 0; if (progressPct > 100) progressPct = 100; }
+            <div class="ai-topbar-combined">
+                <button class="ai-menu-btn" id="openSidebar"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg></button>
+                <div class="ai-topbar-center">
+                    <span class="ai-topbar-week">Week @Model.Week of @Model.TotalWeeks</span>
+                    <div class="ai-topbar-bar"><div class="ai-topbar-fill" style="width:@(progressPct)%"></div></div>
+                </div>
+                <div class="ai-status-banner-phase">@Model.Phase</div>
+            </div>
+            <a href="/Index" class="ai-start-training-btn">🔥 START TRAINING 💪</a>
         }
-        <div class="ai-topbar-combined">
-            <button class="ai-menu-btn" id="openSidebar">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <line x1="3" y1="6" x2="21" y2="6"></line>
-                    <line x1="3" y1="12" x2="21" y2="12"></line>
-                    <line x1="3" y1="18" x2="21" y2="18"></line>
-                </svg>
-            </button>
-            <div class="ai-topbar-center">
-                <span class="ai-topbar-week">Week @Model.Week of @Model.TotalWeeks</span>
-                <div class="ai-topbar-bar"><div class="ai-topbar-fill" style="width:@(progressPct)%"></div></div>
+        else
+        {
+            <div class="ai-topbar-combined" style="justify-content:center;">
+                <span class="ai-topbar-week" style="font-size:15px;font-weight:700;letter-spacing:0.04em;">🦴 RubberJointsAI Setup</span>
             </div>
-            <div class="ai-status-banner-phase">@Model.Phase</div>
-        </div>
+            <div class="onboarding-bar" id="onboardingBar">
+                @for (int i = 0; i < 7; i++)
+                {
+                    <div class="onboarding-dot @(i < Model.OnboardingStep ? "done" : "") @(i == Model.OnboardingStep ? "active" : "")"></div>
+                }
+            </div>
+        }
 
-        <!-- START TRAINING — fixed right below the status bar -->
-        <a href="/Index" class="ai-start-training-btn">
-            🔥 START TRAINING 💪
-        </a>
-
-        <!-- Messages area (scrollable) — joke, info, messages, and chips all scroll -->
         <div class="ai-messages" id="aiMessages">
-
-            <!-- Joke card — scrolls with messages -->
-            <div class="ai-joke-card ai-joke-in-scroll" id="jokeCard">
-                <div class="ai-joke-icon">😂</div>
-                <div class="ai-joke-text" id="jokeText"></div>
-                <div class="ai-joke-tagline">— Your joints, probably</div>
-            </div>
-
-            <!-- Today's Quick Glance — compact 2-line summary -->
-            <div class="ai-info-card ai-info-compact">
-                <div class="ai-info-nugget" id="aiStatsLine">💪 Loading today's stats...</div>
-                <div class="ai-info-nugget">📊 Check <strong>Progress</strong> tab to track your journey</div>
-            </div>
-
-            <!-- AI intro -->
+            @if (!Model.IsOnboarding)
+            {
+                <div class="ai-joke-card ai-joke-in-scroll" id="jokeCard">
+                    <div class="ai-joke-icon">😂</div>
+                    <div class="ai-joke-text" id="jokeText"></div>
+                    <div class="ai-joke-tagline">— Your joints, probably</div>
+                </div>
+                <div class="ai-info-card ai-info-compact">
+                    <div class="ai-info-nugget" id="aiStatsLine">💪 Loading today's stats...</div>
+                    <div class="ai-info-nugget">📊 Check <strong>Progress</strong> tab to track your journey</div>
+                </div>
+            }
             <div class="ai-message ai-message-assistant">
-                <div class="ai-avatar">
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <path d="M12 2L9 7l-5 1 3.5 3.5L7 17l5-2.5L17 17l-.5-5.5L20 8l-5-1z"></path>
-                    </svg>
-                </div>
+                <div class="ai-avatar"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L9 7l-5 1 3.5 3.5L7 17l5-2.5L17 17l-.5-5.5L20 8l-5-1z"></path></svg></div>
                 <div class="ai-bubble ai-bubble-assistant">
-                    <p>Ask me anything about your program, exercises, or supplements!</p>
+                    @if (Model.IsOnboarding)
+                    {
+                        <div class="ai-typing" id="initialLoader"><span></span><span></span><span></span></div>
+                    }
+                    else
+                    {
+                        <p>Ask me anything about your program, exercises, or supplements!</p>
+                    }
                 </div>
             </div>
-
         </div>
 
-        <!-- FIXED BOTTOM: chips + input + disclaimer — never scrolls -->
         <div class="ai-bottom-fixed">
-            <div class="ai-suggestions-fixed" id="aiSuggestions">
-                <button class="ai-chip" data-prompt="Give me a status update on where I am in my program — what week, what I've completed today, and how my overall progress looks.">
-                    My status
-                </button>
-                <button class="ai-chip" data-prompt="What should I focus on in today's session? Any tips for getting the most out of my exercises?">
-                    Today's focus
-                </button>
-                <button class="ai-chip" data-prompt="How is my progress this week compared to what's expected? Am I on track?">
-                    Weekly progress
-                </button>
-            </div>
+            @if (!Model.IsOnboarding)
+            {
+                <div class="ai-suggestions-fixed" id="aiSuggestions">
+                    <button class="ai-chip" data-prompt="Give me a status update on where I am in my program — what week, what I've completed today, and how my overall progress looks.">My status</button>
+                    <button class="ai-chip" data-prompt="What should I focus on in today's session? Any tips for getting the most out of my exercises?">Today's focus</button>
+                    <button class="ai-chip" data-prompt="How is my progress this week compared to what's expected? Am I on track?">Weekly progress</button>
+                </div>
+            }
             <div class="ai-input-wrapper">
-                <textarea class="ai-input" id="aiInput" placeholder="Ask your AI coach..." rows="1"></textarea>
-                <button class="ai-send-btn" id="aiSendBtn" disabled>
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <line x1="22" y1="2" x2="11" y2="13"></line>
-                        <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
-                    </svg>
-                </button>
+                <textarea class="ai-input" id="aiInput" placeholder="@(Model.IsOnboarding ? "Type here or use the options above..." : "Ask your AI coach...")" rows="1"></textarea>
+                <button class="ai-send-btn" id="aiSendBtn" disabled><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg></button>
             </div>
             <div class="ai-disclaimer-slim">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-                    <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"></path>
-                    <line x1="12" y1="9" x2="12" y2="13"></line>
-                    <line x1="12" y1="17" x2="12.01" y2="17"></line>
-                </svg>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
                 <span><strong>Not medical advice.</strong> Always consult a professional.</span>
             </div>
         </div>
@@ -128,376 +128,313 @@
 </div>
 
 <script>
-    // === JOKE ROTATION — changes on every page load AND every message ===
-    const jokes = [
-        // === ORIGINALS ===
-        "My knees sound like a haunted house every time I use the stairs.",
-        "I don't need an alarm clock. My joints crack so loud they wake up the whole house.",
-        "At 20, I could touch my toes. At 40, I'm happy if I can see them.",
-        "My doctor said I should do lunges to stay in shape. That would be a big step forward.",
-        "I told my knee to stop making noise. It said it was just trying to get a-joint-ment.",
-        "The only snaps, crackles, and pops I get now are from my body, not my cereal.",
-        "I stretched this morning and my back made a sound like bubble wrap at a birthday party.",
-        "My hip flexors are so tight, they have their own zip code.",
-        "My body doesn't wake up anymore — it negotiates with gravity first.",
-        "I used to be flexible. Now I pull a muscle reaching for the TV remote.",
-        "My joints predict the weather better than any app on my phone.",
-        "Getting out of bed used to take 2 seconds. Now it's a 5-stage process with sound effects.",
-        "My physical therapist laughed when I said I wanted to touch my toes. Then I laughed. Then we both cried.",
-        "I tried yoga once. The instructor said 'listen to your body.' My body said 'absolutely not.'",
-        "Age is just a number. But so is your creak-per-squat ratio, and mine is off the charts.",
-        "My knees are like popcorn — they pop at random and everyone around me can hear it.",
-        "I used to party until 2 AM. Now my joints party every time I stand up.",
-        "I don't stretch before exercise. I stretch before bending down to tie my shoes.",
-        "My ankles crack so loud, my neighbors asked if I was making popcorn.",
-        "Whoever said 'no pain, no gain' clearly never tried standing up after sitting on the floor.",
-        "I'm not old, I'm just... pre-owned with some joint noise.",
-        "My morning stretch routine sounds like someone stepping on Legos in a hallway.",
-        "I went to the gym and the trainer asked my fitness level. I said 'I can open a jar without crying.'",
-        "My joints have more complaints than a Yelp review section.",
-        "I thought my knee cracked because of arthritis. Turns out it's just applauding me for trying.",
-        "My skeleton sounds like a percussion section warming up.",
-        "I sneezed and threw out my back. That's my villain origin story.",
-        "My chiropractor has a frequent visitor card. I'm on my third one.",
-        "I don't crack my knuckles for fun. My knuckles crack themselves to assert dominance.",
-        "My joints pop so much, I'm basically a one-person band.",
-        "I dropped something on the floor. It lives there now.",
-        "My elbows sound like someone crumpling a paper bag every time I do a push-up.",
-        "My hips don't lie. And right now they're saying 'not today, buddy.'",
-        "I told my trainer I wanted a body like a Greek god. He said 'you already creak like an ancient relic.'",
-        "Stairs used to be transportation. Now they're a cardio workout with a soundtrack.",
-        "My shoulder cracks louder than my phone notification. People think I'm getting texts.",
-        "I used to run marathons. Now I run out of breath walking to the fridge.",
-        "I sat on the floor to play with my kids. I'm still trying to get back up. Send help.",
-        "My joints are so noisy, even my dog looks at me funny when I stand up.",
-        "I foam-rolled once. It was like a horror movie but I was both the victim and the monster.",
-        "If my joints had a Spotify playlist, it would be called 'Snap, Crackle & Suffering.'",
-        "My wrists crack so much, people think I'm typing in Morse code.",
-        "I call my morning stretch routine 'the symphony of regret.'",
-        "My right knee and left knee are in a competition to see who can be louder. Nobody wins.",
-        "I can't sneak up on anyone anymore. My ankles announce me three rooms away.",
-        "I asked my joints to be quiet. They said they'd file a noise complaint about my snoring first.",
-        "My spine sounds like a zipper every time I twist. A really old, rusty zipper.",
-        "The last time I was limber, dial-up internet was still a thing.",
-        "My joints pop so often I started counting. I lost count by breakfast.",
-        "I bent over to pick up my keys and my body played the entire percussion section of Beethoven's Fifth.",
-        // === 100 NEW JOKES ===
-        "My warm-up takes longer than my actual workout now.",
-        "I told my back to straighten up. It filed for early retirement instead.",
-        "My body makes more sound effects than a Michael Bay movie.",
-        "I tried to crack my neck and three coworkers thought I was opening a soda.",
-        "My flexibility peaked in the womb. It's been downhill since.",
-        "I don't need a foam roller — just getting out of a car does the trick.",
-        "My PT says I have the hips of an 80-year-old. I'm 35.",
-        "I pulled a muscle in my sleep. Just sleeping. That's where I am in life.",
-        "My joints have their own ASMR channel. It's just popping and cracking for 8 hours.",
-        "I did a jumping jack and my neighbors called the police about the noise.",
-        "My body doesn't have a check engine light, but if it did, it would be on permanently.",
-        "I told someone I was into mobility work. They asked if I was a mechanic.",
-        "My joints didn't pop today. I called my doctor in a panic.",
-        "I tried to touch my toes. My toes filed a restraining order.",
-        "My knees have a weather forecast: 100% chance of cracking with occasional stiffness.",
-        "I rolled out of bed this morning. Literally. Rolled. Off the edge.",
-        "The elevator broke at work. I took the stairs. Called in sick the next day.",
-        "My joints make more noise than my kids in the morning.",
-        "I foam-rolled my IT band and blacked out. Woke up a better person.",
-        "My massage therapist found knots in places I didn't know had muscles.",
-        "I did a squat and my knee made a noise that scared the cat off the couch.",
-        "I stretch every day now. Getting socks on counts as stretching, right?",
-        "My hamstrings are so tight they could be guitar strings. B-flat, specifically.",
-        "I told my doctor my joints hurt. He said, 'Which ones?' I said, 'Yes.'",
-        "My morning routine: wake up, crack everything, assess the damage, proceed.",
-        "The last time I sat cross-legged on the floor, I needed a search and rescue team.",
-        "I bought a yoga mat. It's been rolled up in the closet for two years. We're working on trust.",
-        "My knee sounds like a stapler every time I walk downstairs.",
-        "I set a personal record today: I stood up on the first try.",
-        "My joints creak so much, I sound like an old pirate ship in a storm.",
-        "I told my wife I was doing mobility drills. She found me lying on the floor unable to get up.",
-        "My hip clicks so often, my FitBit counts it as steps.",
-        "I tried a dead hang. My shoulders asked if this was some kind of punishment.",
-        "I'm one squat away from either getting stronger or calling an ambulance.",
-        "My neck cracks so loud in meetings, people think I'm disagreeing aggressively.",
-        "I Googled 'why do my joints crack' and the first result said 'because you're old.'",
-        "I bought a standing desk to help my back. Now my feet hurt too.",
-        "My body makes a full percussion kit sound when I do a Turkish get-up.",
-        "I tried hot yoga. The heat was great. The yoga was a hostage situation.",
-        "My ankle rolls easier than a shopping cart wheel.",
-        "I asked my trainer how to improve flexibility. He said, 'Start by showing up.'",
-        "My spine cracks in the morning like a glow stick being activated.",
-        "I can predict rain with my left knee better than any weather app.",
-        "I used to limbo. Now I can barely lumber.",
-        "My rotator cuff sounds like a rusty gate every time I reach for something.",
-        "I've been stretching for a month. I can almost reach the top shelf now. Almost.",
-        "My idea of a wild Friday night is 20 minutes on the foam roller.",
-        "I cracked my back and my Apple Watch congratulated me on standing.",
-        "My mobility test at the gym lasted 3 minutes. The recovery took 3 days.",
-        "I tried the splits once. Once.",
-        "My lower back has a grudge that started in 2015 and it still hasn't let go.",
-        "I walked into a mobility class. Walked out with new respect for my grandma.",
-        "My joints sound like Rice Krispies left in milk too long — soggy but still snapping.",
-        "I sneezed while stretching and pulled two muscles I didn't know I had.",
-        "My ankle mobility is so bad, my squat looks like a trust fall nobody catches.",
-        "I bought compression sleeves for my knees. My knees still complain. Now they're just fashionable.",
-        "My PT gave me homework. My body returned it with a D-minus.",
-        "I hang from the pull-up bar every day. My shoulders send formal complaints every night.",
-        "My hip flexors are so tight, they could anchor a cruise ship.",
-        "I tried a Cossack squat and woke up in a different dimension.",
-        "My back cracks in the shower and the echo makes it sound like I'm in a horror movie.",
-        "I roll my ankles just walking on flat ground. Flat. Ground.",
-        "My partner asked if I was okay because of the noises. I was just standing up.",
-        "I tried to sit in a deep squat. My body countered with a shallow embarrassment.",
-        "My foam roller has seen things. Dark things. We don't talk about leg day.",
-        "I set a timer for a 2-minute dead hang. Lasted 11 seconds. Felt like 2 minutes.",
-        "My stretching routine looks like modern interpretive dance. Badly choreographed.",
-        "My calves are so tight they have their own area code and a small militia.",
-        "I told my joints I was going for a run. They immediately organized a protest.",
-        "My physical therapist sighed when she saw my range of motion. Then she sighed again.",
-        "I can crack my back in 14 different spots. It's not a talent. It's a condition.",
-        "I asked a gymnast how they stay so flexible. They said 'practice.' I said 'goodbye.'",
-        "My foam roller makes me cry. But like, in a good way. Supposedly.",
-        "I bought a lacrosse ball for myofascial release. My muscles are filing for a protection order.",
-        "My body after a workout: 'You call that a cool-down? I call that a catastrophe.'",
-        "I watched a yoga video on YouTube. My joints cracked just from observing.",
-        "I tried pigeon pose. The pigeon community sent a cease and desist.",
-        "My morning mobility takes 30 minutes. My actual workout takes 20. Priorities.",
-        "I have the flexibility of a LEGO figure. The original kind. Not the bendy ones.",
-        "I walked into a CrossFit gym and my joints immediately went on strike.",
-        "My hip makes a clicking sound that my kids use as a metronome.",
-        "I used to be able to sit Indian-style. Now I sit 'call-the-ambulance style.'",
-        "My shoulder pops so loud during push-ups that people think I'm clapping.",
-        "I started stretching and heard a noise. Turns out that was my self-esteem cracking.",
-        "My glutes are so inactive, they haven't clocked in since 2019.",
-        "I tried a wall sit. The wall won.",
-        "My thoracic spine has the mobility of a parking meter.",
-        "I hung from a bar at the playground. Five kids gathered to watch the struggle.",
-        "My right shoulder clicks, my left shoulder crunches, and my ego just whimpers.",
-        "I can hear my own knee cap from inside my head. That can't be normal.",
-        "I take glucosamine, fish oil, turmeric, and collagen. My joints are still rude.",
-        "I tried a backbend once. My spine said, 'This is a forward-only operation.'",
-        "My recovery day looks exactly like my workout day, but horizontal.",
-        "I told my kids I used to be athletic. They didn't even look up from their phones.",
-        "My deep squat is everyone else's shallow curtsy.",
-        "I went to a chiropractor and he cracked things I didn't even know could crack.",
-        "My body is a temple. An ancient one. With poor structural integrity.",
-        "I stretched my hamstring and it twanged like a banjo string.",
-        "My trainer said 'move with intention.' My intention was to not collapse.",
-        "My idea of active recovery is walking to the fridge and back without groaning.",
-        "I tried hanging from a doorframe pull-up bar. The bar held. My dignity didn't.",
-        "My physio says I should think of my body as a machine. It's definitely making machine noises.",
-        "I did one burpee and my knees wrote a strongly-worded letter to management.",
-    ];
+const IS_ONBOARDING = @(Model.IsOnboarding ? "true" : "false");
+let currentOnboardingStep = @Model.OnboardingStep;
+let conversationHistory = [];
+let isSending = false;
 
-    let jokeIndex = Math.floor(Math.random() * jokes.length);
+// ═══ JOKES ═══
+const jokes = [
+    "My knees sound like a haunted house every time I use the stairs.",
+    "I don't need an alarm clock. My joints crack so loud they wake up the whole house.",
+    "My doctor said I should do lunges. That would be a big step forward.",
+    "The only snaps, crackles, and pops I get now are from my body, not my cereal.",
+    "My hip flexors are so tight, they have their own zip code.",
+    "I foam-rolled once. It was like a horror movie but I was both the victim and the monster.",
+    "My joints predict the weather better than any app on my phone.",
+    "I tried yoga once. The instructor said 'listen to your body.' My body said 'absolutely not.'",
+    "My morning stretch routine sounds like someone stepping on Legos in a hallway.",
+    "I sneezed and threw out my back. That's my villain origin story.",
+    "My body is a temple. An ancient one. With poor structural integrity.",
+    "I set a personal record today: I stood up on the first try.",
+    "My joints have more complaints than a Yelp review section.",
+    "I pulled a muscle in my sleep. Just sleeping. That's where I am in life.",
+    "My flexibility peaked in the womb. It's been downhill since.",
+    "I tried to touch my toes. My toes filed a restraining order.",
+    "My spine cracks in the morning like a glow stick being activated.",
+    "I have the flexibility of a LEGO figure. The original kind.",
+    "I did one burpee and my knees wrote a strongly-worded letter to management.",
+    "My recovery day looks exactly like my workout day, but horizontal."
+];
+let jokeIndex = Math.floor(Math.random() * jokes.length);
 
-    function showNewJoke() {
-        jokeIndex = (jokeIndex + 1) % jokes.length;
-        const jokeText = document.getElementById('jokeText');
-        if (jokeText) {
-            jokeText.style.opacity = '0';
-            setTimeout(() => {
-                jokeText.textContent = '"' + jokes[jokeIndex] + '"';
-                jokeText.style.opacity = '1';
-            }, 200);
-        }
-    }
+function showNewJoke() {
+    jokeIndex = (jokeIndex + 1) % jokes.length;
+    const el = document.getElementById('jokeText');
+    if (el) { el.style.opacity='0'; setTimeout(() => { el.textContent='"'+jokes[jokeIndex]+'"'; el.style.opacity='1'; }, 200); }
+}
+if (!IS_ONBOARDING) {
+    const jt = document.getElementById('jokeText');
+    if (jt) jt.textContent = '"' + jokes[jokeIndex] + '"';
+}
 
-    // Show a random joke on page load
-    document.getElementById('jokeText').textContent = '"' + jokes[jokeIndex] + '"';
+// ═══ SIDEBAR ═══
+const sidebar = document.getElementById('aiSidebar'), overlay = document.getElementById('aiOverlay');
+document.getElementById('openSidebar')?.addEventListener('click', () => { sidebar?.classList.add('open'); overlay?.classList.add('visible'); });
+document.getElementById('closeSidebar')?.addEventListener('click', () => { sidebar?.classList.remove('open'); overlay?.classList.remove('visible'); });
+overlay?.addEventListener('click', () => { sidebar?.classList.remove('open'); overlay?.classList.remove('visible'); });
 
-    // === Sidebar Toggle ===
-    const sidebar = document.getElementById('aiSidebar');
-    const overlay = document.getElementById('aiOverlay');
-    const openBtn = document.getElementById('openSidebar');
-    const closeBtn = document.getElementById('closeSidebar');
+// ═══ INPUT ═══
+const input = document.getElementById('aiInput'), sendBtn = document.getElementById('aiSendBtn');
+input.addEventListener('input', function() {
+    this.style.height = 'auto';
+    this.style.height = Math.min(this.scrollHeight, 120) + 'px';
+    sendBtn.disabled = this.value.trim().length === 0;
+});
 
-    function openSidebar() {
-        sidebar.classList.add('open');
-        overlay.classList.add('visible');
-    }
-    function closeSidebar() {
-        sidebar.classList.remove('open');
-        overlay.classList.remove('visible');
-    }
+// ═══ CORE: Send message to AI ═══
+async function sendMessage(text, selection) {
+    if (isSending) return;
+    if (!text && !selection) { text = input.value.trim(); if (!text) return; }
+    isSending = true;
 
-    openBtn.addEventListener('click', openSidebar);
-    closeBtn.addEventListener('click', closeSidebar);
-    overlay.addEventListener('click', closeSidebar);
+    if (!IS_ONBOARDING) showNewJoke();
+    const messagesDiv = document.getElementById('aiMessages');
 
-    // === Auto-resize textarea ===
-    const input = document.getElementById('aiInput');
-    const sendBtn = document.getElementById('aiSendBtn');
-
-    input.addEventListener('input', function() {
-        this.style.height = 'auto';
-        this.style.height = Math.min(this.scrollHeight, 120) + 'px';
-        sendBtn.disabled = this.value.trim().length === 0;
-    });
-
-    // === Send message — calls real AI backend ===
-    let isSending = false;
-
-    async function sendMessage() {
-        const text = input.value.trim();
-        if (!text || isSending) return;
-        isSending = true;
-
-        // Rotate joke on every message
-        showNewJoke();
-
-        const messagesDiv = document.getElementById('aiMessages');
-
-        // Add user bubble
+    // Show user message (if text provided)
+    if (text) {
         const userMsg = document.createElement('div');
         userMsg.className = 'ai-message ai-message-user';
         userMsg.innerHTML = `<div class="ai-bubble ai-bubble-user">${escapeHtml(text)}</div>`;
         messagesDiv.appendChild(userMsg);
+        conversationHistory.push({ role: 'user', content: text });
+    }
 
-        // Clear input
-        input.value = '';
-        input.style.height = 'auto';
-        sendBtn.disabled = true;
+    input.value = ''; input.style.height = 'auto'; sendBtn.disabled = true;
 
-        // Add AI thinking bubble
-        const aiMsg = document.createElement('div');
-        aiMsg.className = 'ai-message ai-message-assistant';
-        aiMsg.innerHTML = `
-            <div class="ai-avatar">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M12 2L9 7l-5 1 3.5 3.5L7 17l5-2.5L17 17l-.5-5.5L20 8l-5-1z"></path>
-                </svg>
-            </div>
-            <div class="ai-bubble ai-bubble-assistant">
-                <div class="ai-typing"><span></span><span></span><span></span></div>
-            </div>`;
-        messagesDiv.appendChild(aiMsg);
-        messagesDiv.scrollTop = messagesDiv.scrollHeight;
+    // Show thinking indicator
+    const aiMsg = document.createElement('div');
+    aiMsg.className = 'ai-message ai-message-assistant';
+    aiMsg.innerHTML = `<div class="ai-avatar"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L9 7l-5 1 3.5 3.5L7 17l5-2.5L17 17l-.5-5.5L20 8l-5-1z"></path></svg></div><div class="ai-bubble ai-bubble-assistant"><div class="ai-typing"><span></span><span></span><span></span></div></div>`;
+    messagesDiv.appendChild(aiMsg);
+    messagesDiv.scrollTop = messagesDiv.scrollHeight;
 
-        try {
-            const resp = await fetch('/api/ai/chat', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ message: text })
-            });
+    try {
+        const body = { message: text || '', history: conversationHistory };
+        if (selection) body.selection = selection;
 
-            const data = await resp.json();
-            const bubble = aiMsg.querySelector('.ai-bubble-assistant');
+        const resp = await fetch('/api/ai/chat', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+        const data = await resp.json();
+        const bubble = aiMsg.querySelector('.ai-bubble-assistant');
 
-            if (data.success && data.response) {
-                bubble.innerHTML = formatResponse(data.response);
-            } else {
-                bubble.innerHTML = `<p style="color:var(--red);">Sorry, I couldn't process that. ${data.error || 'Please try again.'}</p>`;
+        if (data.success && data.response) {
+            bubble.innerHTML = formatResponse(data.response);
+            conversationHistory.push({ role: 'assistant', content: data.response });
+
+            // Render UI component if present (onboarding)
+            if (data.ui_component) {
+                const uiContainer = document.createElement('div');
+                uiContainer.className = 'ai-ui-component';
+                renderUIComponent(uiContainer, data.ui_component, data.onboarding_step);
+                bubble.appendChild(uiContainer);
             }
-        } catch (err) {
-            const bubble = aiMsg.querySelector('.ai-bubble-assistant');
-            bubble.innerHTML = `<p style="color:var(--red);">Connection error. Please check your internet and try again.</p>`;
-        }
 
-        messagesDiv.scrollTop = messagesDiv.scrollHeight;
-        isSending = false;
+            // Update onboarding progress bar
+            if (data.onboarding_step !== undefined) {
+                currentOnboardingStep = data.onboarding_step;
+                updateOnboardingBar(data.onboarding_step);
+            }
+
+            // Onboarding complete — reload page to unlock tabs
+            if (data.onboarding_complete) {
+                setTimeout(() => window.location.reload(), 2000);
+            }
+        } else {
+            bubble.innerHTML = `<p style="color:var(--red);">Sorry, something went wrong. ${data.error || 'Please try again.'}</p>`;
+        }
+    } catch (err) {
+        aiMsg.querySelector('.ai-bubble-assistant').innerHTML = `<p style="color:var(--red);">Connection error. Please try again.</p>`;
     }
 
-    // Format AI response text into HTML
-    function formatResponse(text) {
-        text = text.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
-        const paragraphs = text.split('\n\n').filter(p => p.trim());
-        if (paragraphs.length > 1) {
-            return paragraphs.map(p => `<p>${p.replace(/\n/g, '<br>')}</p>`).join('');
-        }
-        return `<p>${text.replace(/\n/g, '<br>')}</p>`;
-    }
+    messagesDiv.scrollTop = messagesDiv.scrollHeight;
+    isSending = false;
+}
 
-    sendBtn.addEventListener('click', sendMessage);
-    input.addEventListener('keydown', function(e) {
-        if (e.key === 'Enter' && !e.shiftKey) {
-            e.preventDefault();
-            sendMessage();
-        }
-    });
-
-    // === Quick suggestion chips — trigger real AI call ===
-    document.querySelectorAll('.ai-chip').forEach(chip => {
-        chip.addEventListener('click', function() {
-            input.value = this.dataset.prompt;
-            input.dispatchEvent(new Event('input'));
-            sendMessage();
-        });
-    });
-
-    // === New Chat ===
-    document.getElementById('newChatBtn').addEventListener('click', function() {
-        const messagesDiv = document.getElementById('aiMessages');
-        // Keep the info card and AI intro (first 2 children)
-        while (messagesDiv.children.length > 2) {
-            messagesDiv.removeChild(messagesDiv.lastChild);
-        }
-        showNewJoke();
-        closeSidebar();
-        addChatToList('New conversation');
-    });
-
-    // === Chat list ===
-    let chatCount = 0;
-    function addChatToList(title) {
-        chatCount++;
-        const chatList = document.getElementById('chatList');
-        const item = document.createElement('div');
-        item.className = 'ai-chat-item active';
-        chatList.querySelectorAll('.ai-chat-item').forEach(el => el.classList.remove('active'));
-        const now = new Date();
-        const time = now.toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'});
-        item.innerHTML = `
-            <div class="ai-chat-item-title">${title}</div>
-            <div class="ai-chat-item-time">${time}</div>`;
-        chatList.prepend(item);
-    }
-    addChatToList('New session');
-
-    function escapeHtml(text) {
+// ═══ Render UI Components ═══
+function renderUIComponent(container, comp, step) {
+    if (comp.type === 'choice') {
         const div = document.createElement('div');
-        div.textContent = text;
-        return div.innerHTML;
+        div.className = 'ui-choices';
+        comp.options.forEach(opt => {
+            const card = document.createElement('div');
+            card.className = 'ui-choice-card';
+            card.innerHTML = `<span class="choice-label">${opt.label}</span>${opt.description ? `<span class="choice-desc">${opt.description}</span>` : ''}`;
+            card.addEventListener('click', () => {
+                // Disable all cards
+                div.querySelectorAll('.ui-choice-card').forEach(c => { c.style.pointerEvents='none'; c.style.opacity='0.5'; });
+                card.style.opacity='1'; card.style.borderColor='var(--acc)';
+
+                if (comp.id === 'gym_access') {
+                    sendMessage(opt.label, { step: 0, data: { has_gym: opt.value } });
+                } else if (comp.id === 'days_per_week') {
+                    sendMessage(opt.label, { step: 1, data: { days_per_week: opt.value } });
+                }
+            });
+            div.appendChild(card);
+        });
+        container.appendChild(div);
     }
+    else if (comp.type === 'exercise_picker') {
+        const div = document.createElement('div');
+        div.className = 'ui-picker';
+        const selectedIds = new Set();
+        const grid = document.createElement('div');
+        grid.className = 'ui-picker-grid';
 
-    // === Auto-send prompt from query parameter (e.g., from "Ask AI" buttons on Today page) ===
-    (function() {
-        const params = new URLSearchParams(window.location.search);
-        const autoPrompt = params.get('prompt');
-        if (autoPrompt && autoPrompt.trim()) {
-            // Clean up the URL so refreshing doesn't re-send
-            window.history.replaceState({}, '', '/AI');
-            // Set the input and send after a short delay to let page initialize
-            setTimeout(() => {
-                input.value = autoPrompt.trim();
-                input.dispatchEvent(new Event('input'));
-                sendMessage();
-            }, 300);
-        }
-    })();
-
-    // === Load today's stats (exercise/supplement counts) in background ===
-    fetch('/api/ai-stats', { credentials: 'same-origin' })
-        .then(r => r.json())
-        .then(d => {
-            if (d.success) {
-                const el = document.getElementById('aiStatsLine');
-                if (el) el.textContent = '💪 ' + d.exercisesDone + '/' + d.exercisesTotal + ' exercises · ' + d.supplementsDone + '/' + d.supplementsTotal + ' supplements';
-            }
-        })
-        .catch(() => {
-            const el = document.getElementById('aiStatsLine');
-            if (el) el.textContent = '💪 Check Workout tab for your progress';
+        comp.exercises.forEach(ex => {
+            const item = document.createElement('div');
+            item.className = 'ui-picker-item';
+            item.innerHTML = `<span class="pick-check"></span><span class="pick-name">${ex.name}</span><span class="pick-desc">${ex.description}</span><span class="pick-rx">${ex.rx}</span>`;
+            item.addEventListener('click', () => {
+                item.classList.toggle('selected');
+                if (item.classList.contains('selected')) selectedIds.add(ex.id); else selectedIds.delete(ex.id);
+                confirmBtn.disabled = selectedIds.size === 0;
+                confirmBtn.textContent = selectedIds.size > 0 ? `Confirm ${selectedIds.size} Selected` : 'Select at least one';
+            });
+            grid.appendChild(item);
         });
 
-    // === Prefetch Today page data in background to warm server cache ===
-    fetch('/api/today-prefetch', { credentials: 'same-origin' }).catch(() => {});
+        const confirmBtn = document.createElement('button');
+        confirmBtn.className = 'ui-picker-confirm';
+        confirmBtn.textContent = 'Select at least one';
+        confirmBtn.disabled = true;
+        confirmBtn.addEventListener('click', () => {
+            confirmBtn.disabled = true; confirmBtn.textContent = 'Saving...';
+            grid.querySelectorAll('.ui-picker-item').forEach(i => i.style.pointerEvents='none');
+            const names = comp.exercises.filter(e => selectedIds.has(e.id)).map(e => e.name).join(', ');
+            sendMessage(`Selected ${comp.category}: ${names}`, { step, data: { exercise_ids: [...selectedIds] } });
+        });
 
-    // === Mobile Safari viewport fix: use real visible height ===
-    function setRealHeight() {
-        const navBar = 56; // bottom nav height
-        const h = window.innerHeight - navBar;
-        document.querySelector('.ai-container').style.height = h + 'px';
-        document.querySelector('.ai-main').style.height = h + 'px';
+        div.appendChild(grid);
+        div.appendChild(confirmBtn);
+        container.appendChild(div);
     }
-    setRealHeight();
-    window.addEventListener('resize', setRealHeight);
+    else if (comp.type === 'supplement_picker') {
+        const div = document.createElement('div');
+        div.className = 'ui-picker';
+        const selectedIds = new Set();
+        const grid = document.createElement('div');
+        grid.className = 'ui-picker-grid';
+
+        // Group by timeGroup
+        const groups = { am: 'Morning ☀️', mid: 'Midday 🌤️', pm: 'Evening 🌙' };
+        const byGroup = {};
+        comp.supplements.forEach(s => {
+            const g = s.timeGroup || 'am';
+            if (!byGroup[g]) byGroup[g] = [];
+            byGroup[g].push(s);
+        });
+
+        for (const [groupKey, groupLabel] of Object.entries(groups)) {
+            if (!byGroup[groupKey] || byGroup[groupKey].length === 0) continue;
+            const label = document.createElement('div');
+            label.className = 'supp-group-label';
+            label.textContent = groupLabel;
+            grid.appendChild(label);
+
+            byGroup[groupKey].forEach(s => {
+                const item = document.createElement('div');
+                item.className = 'ui-picker-item';
+                item.innerHTML = `<span class="pick-check"></span><span class="pick-name">${s.name}</span><span class="pick-desc">${s.dose}</span><span class="pick-rx">${s.time}</span>`;
+                item.addEventListener('click', () => {
+                    item.classList.toggle('selected');
+                    if (item.classList.contains('selected')) selectedIds.add(s.id); else selectedIds.delete(s.id);
+                    confirmBtn.disabled = selectedIds.size === 0;
+                    confirmBtn.textContent = selectedIds.size > 0 ? `Confirm ${selectedIds.size} Supplements` : 'Select at least one';
+                });
+                grid.appendChild(item);
+            });
+        }
+
+        const confirmBtn = document.createElement('button');
+        confirmBtn.className = 'ui-picker-confirm';
+        confirmBtn.textContent = 'Select at least one';
+        confirmBtn.disabled = true;
+        confirmBtn.addEventListener('click', () => {
+            confirmBtn.disabled = true; confirmBtn.textContent = 'Saving...';
+            grid.querySelectorAll('.ui-picker-item').forEach(i => i.style.pointerEvents='none');
+            sendMessage(`Selected ${selectedIds.size} supplements`, { step, data: { supplement_ids: [...selectedIds] } });
+        });
+
+        div.appendChild(grid);
+        div.appendChild(confirmBtn);
+        container.appendChild(div);
+    }
+    else if (comp.type === 'confirmation') {
+        const div = document.createElement('div');
+        div.className = 'ui-confirm-card';
+        div.innerHTML = `
+            <div class="ui-confirm-stat"><strong>${comp.summary.gym ? '🏋️ Gym' : '🏠 Home'}</strong> workouts</div>
+            <div class="ui-confirm-stat"><strong>${comp.summary.days} days</strong> per week</div>
+            <div class="ui-confirm-stat"><strong>${comp.summary.exercises} exercises</strong> selected</div>
+            <button class="ui-confirm-btn" id="confirmPlanBtn">🚀 Generate My Plan!</button>`;
+        div.querySelector('#confirmPlanBtn').addEventListener('click', function() {
+            this.disabled = true; this.textContent = '⏳ Building your plan...';
+            sendMessage('Generate my plan!', { step: 6, data: {} });
+        });
+        container.appendChild(div);
+    }
+}
+
+function updateOnboardingBar(step) {
+    document.querySelectorAll('.onboarding-dot').forEach((dot, i) => {
+        dot.classList.toggle('done', i < step);
+        dot.classList.toggle('active', i === step);
+    });
+}
+
+// ═══ Format response ═══
+function formatResponse(text) {
+    text = text.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+    const paragraphs = text.split('\n\n').filter(p => p.trim());
+    if (paragraphs.length > 1) return paragraphs.map(p => `<p>${p.replace(/\n/g, '<br>')}</p>`).join('');
+    return `<p>${text.replace(/\n/g, '<br>')}</p>`;
+}
+
+function escapeHtml(text) { const d = document.createElement('div'); d.textContent = text; return d.innerHTML; }
+
+// ═══ Event handlers ═══
+sendBtn.addEventListener('click', () => sendMessage());
+input.addEventListener('keydown', function(e) { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); } });
+
+document.querySelectorAll('.ai-chip').forEach(chip => {
+    chip.addEventListener('click', function() { input.value = this.dataset.prompt; input.dispatchEvent(new Event('input')); sendMessage(); });
+});
+
+document.getElementById('newChatBtn')?.addEventListener('click', function() {
+    const md = document.getElementById('aiMessages');
+    while (md.children.length > (IS_ONBOARDING ? 1 : 3)) md.removeChild(md.lastChild);
+    conversationHistory = [];
+    if (!IS_ONBOARDING) showNewJoke();
+    sidebar?.classList.remove('open'); overlay?.classList.remove('visible');
+});
+
+// ═══ Auto-send for onboarding or prompt param ═══
+(function() {
+    if (IS_ONBOARDING) {
+        // Auto-start onboarding
+        setTimeout(() => sendMessage('Hey! I\'m ready to set up my plan.'), 400);
+        return;
+    }
+
+    // Auto-send prompt from query param
+    const params = new URLSearchParams(window.location.search);
+    const autoPrompt = params.get('prompt');
+    if (autoPrompt && autoPrompt.trim()) {
+        window.history.replaceState({}, '', '/AI');
+        setTimeout(() => { input.value = autoPrompt.trim(); input.dispatchEvent(new Event('input')); sendMessage(); }, 300);
+    }
+})();
+
+// ═══ Stats + Prefetch (only when not onboarding) ═══
+if (!IS_ONBOARDING) {
+    fetch('/api/ai-stats', { credentials: 'same-origin' }).then(r => r.json()).then(d => {
+        if (d.success) { const el = document.getElementById('aiStatsLine'); if (el) el.textContent = '💪 ' + d.exercisesDone + '/' + d.exercisesTotal + ' exercises · ' + d.supplementsDone + '/' + d.supplementsTotal + ' supplements'; }
+    }).catch(() => { const el = document.getElementById('aiStatsLine'); if (el) el.textContent = '💪 Check Workout tab for your progress'; });
+    fetch('/api/today-prefetch', { credentials: 'same-origin' }).catch(() => {});
+}
+
+// ═══ Mobile Safari viewport fix ═══
+function setRealHeight() { const h = window.innerHeight - 56; document.querySelector('.ai-container').style.height = h + 'px'; document.querySelector('.ai-main').style.height = h + 'px'; }
+setRealHeight(); window.addEventListener('resize', setRealHeight);
 </script>

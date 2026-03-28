@@ -14,10 +14,11 @@ public class AIModel : PageModel
         _repository = repository;
     }
 
-    // Only the bare minimum for server-side render — everything else loads client-side
     public int Week { get; set; } = 1;
     public int TotalWeeks { get; set; } = 4;
     public string Phase { get; set; } = "Foundation";
+    public bool IsOnboarding { get; set; } = true;
+    public int OnboardingStep { get; set; } = 0;
 
     private static DateTime GetPacificNow()
     {
@@ -32,16 +33,24 @@ public class AIModel : PageModel
 
         try
         {
-            // Single fast query — enrollment only
-            var enrollment = await _repository.GetActiveEnrollmentAsync(userId);
-            if (enrollment != null)
+            // Check onboarding state
+            var prefs = await _repository.GetUserPreferencesAsync(userId);
+            IsOnboarding = prefs == null || prefs.OnboardingStep < 7;
+            OnboardingStep = prefs?.OnboardingStep ?? 0;
+
+            // Enrollment info (only if onboarded)
+            if (!IsOnboarding)
             {
-                if (DateTime.TryParse(enrollment.StartDate, out var enrollStart))
+                var enrollment = await _repository.GetActiveEnrollmentAsync(userId);
+                if (enrollment != null)
                 {
-                    int daysSince = (pacificNow.Date - enrollStart.Date).Days;
-                    Week = Math.Max(1, daysSince / 7 + 1);
+                    if (DateTime.TryParse(enrollment.StartDate, out var enrollStart))
+                    {
+                        int daysSince = (pacificNow.Date - enrollStart.Date).Days;
+                        Week = Math.Max(1, daysSince / 7 + 1);
+                    }
+                    Phase = Week <= 2 ? "Foundation" : "Progression";
                 }
-                Phase = Week <= 2 ? "Foundation" : "Progression";
             }
         }
         catch
