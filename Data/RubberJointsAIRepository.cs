@@ -2249,16 +2249,20 @@ namespace RubberJointsAI.Data
         }
 
         /// <summary>
-        /// Builds a varied daily workout session from the user's selected exercises.
-        /// Training days: 2-3 warm-up → 4-6 mobility (rotated by dayIndex) → 2-3 recovery
+        /// Builds a varied daily workout session that progresses across 4 weeks:
+        /// Week 1 (Foundation): gentle start — 1-2 warmup, 3-4 mobility, 1-2 recovery
+        /// Week 2 (Building):   ramp up   — 2 warmup, 4-5 mobility, 2 recovery
+        /// Week 3 (Momentum):   full load — 2-3 warmup, 5-6 mobility, 2-3 recovery
+        /// Week 4 (Peak):       peak      — 3 warmup, 6 mobility, 3 recovery
         /// Rest days: 2-3 light mobility only
         /// Recovery days: light mobility + recovery tools
-        /// The dayIndex parameter (0-27) ensures variety across the 28-day program.
+        /// The dayIndex (0-27) rotates exercise selection for daily variety.
         /// </summary>
         private List<(string exId, string category, string? rx)> GetExercisesForDayTypeCustom(
             string dayType, HashSet<string> selectedIds, Dictionary<string, Exercise> allExercises, bool hasGym, int dayIndex = 0)
         {
             var result = new List<(string exId, string category, string? rx)>();
+            int week = dayIndex / 7; // 0-3
 
             // Helper: get available exercises for a category, respecting home filter
             List<string> AvailableFor(string category) =>
@@ -2280,9 +2284,10 @@ namespace RubberJointsAI.Data
 
             if (dayType == "rest")
             {
-                // Rest day: 2-3 light mobility exercises, rotated for variety
+                // Rest day: just 2-3 light mobility, scales with week
                 var mobilityPool = AvailableFor("mobility");
-                var picks = PickRotated(mobilityPool, 3, dayIndex);
+                int restMob = week < 2 ? 2 : 3;
+                var picks = PickRotated(mobilityPool, restMob, dayIndex);
                 foreach (var id in picks)
                     result.Add((id, "mobility", allExercises[id].DefaultRx));
                 return result;
@@ -2290,11 +2295,13 @@ namespace RubberJointsAI.Data
 
             if (dayType == "recovery")
             {
-                // Recovery day: light mobility (2-3) + recovery tools (2-3)
+                // Recovery day: light mobility + recovery tools, scales with week
                 var mobilityPool = AvailableFor("mobility");
                 var recoveryPool = AvailableFor("recovery_tool");
-                var mobPicks = PickRotated(mobilityPool, 3, dayIndex);
-                var recPicks = PickRotated(recoveryPool, 3, dayIndex * 2);
+                int recMob = week < 2 ? 2 : 3;
+                int recRec = week < 2 ? 2 : 3;
+                var mobPicks = PickRotated(mobilityPool, recMob, dayIndex);
+                var recPicks = PickRotated(recoveryPool, recRec, dayIndex * 2);
                 foreach (var id in mobPicks)
                     result.Add((id, "mobility", allExercises[id].DefaultRx));
                 foreach (var id in recPicks)
@@ -2302,25 +2309,49 @@ namespace RubberJointsAI.Data
                 return result;
             }
 
-            // ── Training day (gym or home) ──
+            // ── Training day (gym or home) — progressive loading by week ──
             var warmups = AvailableFor("warmup_tool");
             var mobility = AvailableFor("mobility");
             var recovery = AvailableFor("recovery_tool");
 
-            // Warm-up: pick 2-3, rotated each day
-            var warmupPicks = PickRotated(warmups, warmups.Count >= 3 ? 3 : 2, dayIndex);
+            // Phase-based counts: start gentle, build gradually
+            int warmupCount, mobilityCount, recoveryCount;
+            switch (week)
+            {
+                case 0: // Week 1 — Foundation: ease in, build the habit
+                    warmupCount = Math.Min(2, warmups.Count);
+                    mobilityCount = Math.Min(3, mobility.Count);
+                    recoveryCount = Math.Min(1, recovery.Count);
+                    break;
+                case 1: // Week 2 — Building: slightly more volume
+                    warmupCount = Math.Min(2, warmups.Count);
+                    mobilityCount = Math.Min(4, mobility.Count);
+                    recoveryCount = Math.Min(2, recovery.Count);
+                    break;
+                case 2: // Week 3 — Momentum: approaching full load
+                    warmupCount = Math.Min(3, warmups.Count);
+                    mobilityCount = Math.Min(5, mobility.Count);
+                    recoveryCount = Math.Min(2, recovery.Count);
+                    break;
+                default: // Week 4 — Peak: full session
+                    warmupCount = Math.Min(3, warmups.Count);
+                    mobilityCount = Math.Min(6, mobility.Count);
+                    recoveryCount = Math.Min(3, recovery.Count);
+                    break;
+            }
+
+            // Warm-up: rotated each day
+            var warmupPicks = PickRotated(warmups, warmupCount, dayIndex);
             foreach (var id in warmupPicks)
                 result.Add((id, "warmup_tool", allExercises[id].DefaultRx));
 
-            // Mobility: pick 4-6 exercises, rotated each day for variety
-            // This gives ~10-20 min of mobility work depending on exercises
-            int mobilityCount = mobility.Count >= 6 ? 6 : Math.Max(4, mobility.Count);
+            // Mobility: rotated each day
             var mobilityPicks = PickRotated(mobility, mobilityCount, dayIndex * 3);
             foreach (var id in mobilityPicks)
                 result.Add((id, "mobility", allExercises[id].DefaultRx));
 
-            // Recovery: pick 2-3, rotated each day
-            var recoveryPicks = PickRotated(recovery, recovery.Count >= 3 ? 3 : 2, dayIndex * 2);
+            // Recovery: rotated each day
+            var recoveryPicks = PickRotated(recovery, recoveryCount, dayIndex * 2);
             foreach (var id in recoveryPicks)
                 result.Add((id, "recovery_tool", allExercises[id].DefaultRx));
 
