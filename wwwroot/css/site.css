@@ -2187,10 +2187,11 @@ a.cal-day:active {
 
 /* --- Status Banner (server-rendered, no AI call) --- */
 .ai-status-banner {
-  background: linear-gradient(135deg, #4a6cf7, #6c5ce7);
-  color: white;
-  padding: 14px 16px 12px;
+  background: #fff;
+  color: #333;
+  padding: 12px 16px 10px;
   flex-shrink: 0;
+  border-bottom: 1px solid #eee;
 }
 
 .ai-status-banner-top {
@@ -2210,8 +2211,8 @@ a.cal-day:active {
   font-size: 11px;
   text-transform: uppercase;
   letter-spacing: 1.2px;
-  opacity: 0.85;
-  background: rgba(255,255,255,0.18);
+  background: #f0f4ff;
+  color: #4a6cf7;
   padding: 3px 10px;
   border-radius: 12px;
   font-weight: 600;
@@ -2219,9 +2220,9 @@ a.cal-day:active {
 
 .ai-status-banner-bar {
   height: 4px;
-  background: rgba(255,255,255,0.2);
+  background: #eee;
   border-radius: 2px;
-  margin-bottom: 12px;
+  margin-bottom: 4px;
   overflow: hidden;
 }
 
@@ -2280,6 +2281,7 @@ a.cal-day:active {
   display: flex;
   flex-direction: column;
   gap: 12px;
+  background: #fff;
 }
 
 .ai-message {
@@ -2516,14 +2518,14 @@ a.cal-day:active {
 
 /* --- Joke of the Day Card --- */
 .ai-joke-card {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: #fffbf0;
   border-radius: 0;
   padding: 10px 20px 8px;
   margin: 0;
-  color: white;
+  color: #6b5b3a;
   text-align: center;
   flex-shrink: 0;
-  border-bottom: 1px solid rgba(0,0,0,0.08);
+  border-bottom: 1px solid #f0e8d8;
 }
 .ai-joke-icon {
   font-size: 20px;
@@ -2657,31 +2659,24 @@ a.cal-day:active {
   width: 100%;
   padding: 10px 24px;
   margin: 0;
-  background: linear-gradient(135deg, #34c759 0%, #30d158 50%, #28c74e 100%);
+  background: #34c759;
   color: white;
-  font-size: 15px;
-  font-weight: 900;
-  letter-spacing: 2px;
+  font-size: 14px;
+  font-weight: 800;
+  letter-spacing: 1.5px;
   text-decoration: none;
   border: none;
-  border-bottom: 2px solid rgba(0,0,0,0.1);
+  border-bottom: 1px solid #eee;
   border-radius: 0;
   cursor: pointer;
   flex-shrink: 0;
-  box-shadow: 0 2px 8px rgba(52, 199, 89, 0.35);
   transition: all 0.2s ease;
-  animation: aiPulseGlow 2s ease-in-out infinite;
 }
 .ai-start-training-btn:hover {
-  background: linear-gradient(135deg, #2db84e, #28c74e);
-  box-shadow: 0 2px 12px rgba(52, 199, 89, 0.55);
+  background: #2db84e;
 }
 .ai-start-training-btn:active {
-  box-shadow: 0 1px 4px rgba(52, 199, 89, 0.3);
-}
-@keyframes aiPulseGlow {
-  0%, 100% { box-shadow: 0 2px 8px rgba(52, 199, 89, 0.35); }
-  50% { box-shadow: 0 2px 16px rgba(52, 199, 89, 0.6); }
+  background: #28a745;
 }
 
 /* --- Welcome text reveal --- */
