@@ -71,9 +71,10 @@
                 <span class="ai-topbar-week" style="font-size:15px;font-weight:700;letter-spacing:0.04em;">🔧 Setup</span>
             </div>
             <div class="onboarding-bar" id="onboardingBar">
-                @for (int i = 0; i < 7; i++)
+                @{ var dotStep = Model.OnboardingStep >= 7 ? 6 : Model.OnboardingStep; }
+                @for (int i = 0; i < 6; i++)
                 {
-                    <div class="onboarding-dot @(i < Model.OnboardingStep ? "done" : "") @(i == Model.OnboardingStep ? "active" : "")"></div>
+                    <div class="onboarding-dot @(i < dotStep ? "done" : "") @(i == dotStep ? "active" : "")"></div>
                 }
             </div>
         }
@@ -320,172 +321,77 @@ function renderUIComponent(container, comp, step) {
 
         container.appendChild(div);
     }
-    else if (comp.type === 'exercise_picker') {
+    else if (comp.type === 'category_deselect_picker') {
+        const isDeselect = comp.mode === 'deselect';
         const div = document.createElement('div');
         div.className = 'ui-picker';
         const selectedIds = new Set();
+        const totalCount = comp.items.length;
+        if (isDeselect) comp.items.forEach(item => selectedIds.add(item.id));
+
         const grid = document.createElement('div');
         grid.className = 'ui-picker-grid';
 
-        comp.exercises.forEach(ex => {
-            const item = document.createElement('div');
-            item.className = 'ui-picker-item';
-            item.innerHTML = `<span class="pick-check"></span><span class="pick-name">${ex.name}</span><span class="pick-desc">${ex.description}</span><span class="pick-rx">${ex.rx}</span>`;
-            item.addEventListener('click', () => {
-                item.classList.toggle('selected');
-                if (item.classList.contains('selected')) selectedIds.add(ex.id); else selectedIds.delete(ex.id);
-                confirmBtn.disabled = selectedIds.size === 0;
-                confirmBtn.textContent = selectedIds.size > 0 ? `Confirm ${selectedIds.size} Selected` : 'Select at least one';
+        const label = document.createElement('div');
+        label.className = 'supp-group-label';
+        label.textContent = comp.category_label;
+        grid.appendChild(label);
+
+        comp.items.forEach(item => {
+            const el = document.createElement('div');
+            el.className = isDeselect ? 'ui-picker-item selected' : 'ui-picker-item';
+            const desc = item.description || '';
+            const rx = item.rx || '';
+            el.innerHTML = `<span class="pick-check"></span><span class="pick-name">${item.name}</span>${desc ? `<span class="pick-desc">${desc}</span>` : ''}${rx ? `<span class="pick-rx">${rx}</span>` : ''}`;
+            el.addEventListener('click', () => {
+                el.classList.toggle('selected');
+                if (el.classList.contains('selected')) selectedIds.add(item.id);
+                else selectedIds.delete(item.id);
+                updateBtn();
             });
-            grid.appendChild(item);
+            grid.appendChild(el);
         });
 
         const confirmBtn = document.createElement('button');
         confirmBtn.className = 'ui-picker-confirm';
-        confirmBtn.textContent = 'Select at least one';
-        confirmBtn.disabled = true;
-        confirmBtn.addEventListener('click', () => {
-            confirmBtn.disabled = true; confirmBtn.textContent = 'Saving...';
-            grid.querySelectorAll('.ui-picker-item').forEach(i => i.style.pointerEvents='none');
-            const names = comp.exercises.filter(e => selectedIds.has(e.id)).map(e => e.name).join(', ');
-            sendMessage(`Selected ${comp.category}: ${names}`, { step, data: { exercise_ids: [...selectedIds] } });
-        });
-
-        div.appendChild(grid);
-        div.appendChild(confirmBtn);
-        container.appendChild(div);
-    }
-    else if (comp.type === 'exercise_deselect_picker') {
-        // All exercises shown, all ENABLED by default. User taps to DESELECT what they don't have.
-        const div = document.createElement('div');
-        div.className = 'ui-picker';
-        const excludedIds = new Set();
-        const totalCount = comp.exercises.length;
-        const grid = document.createElement('div');
-        grid.className = 'ui-picker-grid';
-
-        // Group exercises by category
-        const categoryLabels = { 'warmup_tool': '🔥 Warm-Up', 'mobility': '🧘 Mobility', 'recovery_tool': '🧊 Recovery' };
-        const categoryOrder = ['warmup_tool', 'mobility', 'recovery_tool'];
-        const byCategory = {};
-        comp.exercises.forEach(ex => {
-            if (!byCategory[ex.category]) byCategory[ex.category] = [];
-            byCategory[ex.category].push(ex);
-        });
-
-        categoryOrder.forEach(cat => {
-            if (!byCategory[cat] || byCategory[cat].length === 0) return;
-            const label = document.createElement('div');
-            label.className = 'supp-group-label';
-            label.textContent = categoryLabels[cat] || cat;
-            grid.appendChild(label);
-
-            byCategory[cat].forEach(ex => {
-                const item = document.createElement('div');
-                item.className = 'ui-picker-item selected'; // all selected by default
-                item.innerHTML = `<span class="pick-check"></span><span class="pick-name">${ex.name}</span><span class="pick-desc">${ex.description}</span><span class="pick-rx">${ex.rx}</span>`;
-                item.addEventListener('click', () => {
-                    item.classList.toggle('selected');
-                    if (item.classList.contains('selected')) {
-                        excludedIds.delete(ex.id);
-                    } else {
-                        excludedIds.add(ex.id);
-                    }
-                    const kept = totalCount - excludedIds.size;
-                    confirmBtn.textContent = excludedIds.size > 0
-                        ? `Generate Plan (${kept} exercises)`
-                        : `Generate Plan (all ${totalCount} exercises)`;
-                });
-                grid.appendChild(item);
-            });
-        });
-
-        const confirmBtn = document.createElement('button');
-        confirmBtn.className = 'ui-picker-confirm';
-        confirmBtn.textContent = `Generate Plan (all ${totalCount} exercises)`;
         confirmBtn.disabled = false;
-        confirmBtn.addEventListener('click', () => {
-            confirmBtn.disabled = true; confirmBtn.textContent = '⏳ Building your plan...';
-            grid.querySelectorAll('.ui-picker-item').forEach(i => i.style.pointerEvents='none');
-            const kept = totalCount - excludedIds.size;
-            sendMessage(`Customized: keeping ${kept} exercises, removed ${excludedIds.size}`, { step, data: { excluded_ids: [...excludedIds] } });
-        });
 
-        div.appendChild(grid);
-        div.appendChild(confirmBtn);
-        container.appendChild(div);
-    }
-    else if (comp.type === 'supplement_picker') {
-        const div = document.createElement('div');
-        div.className = 'ui-picker';
-        const selectedIds = new Set();
-        const grid = document.createElement('div');
-        grid.className = 'ui-picker-grid';
-
-        // Group by timeGroup
-        const groups = { am: 'Morning ☀️', mid: 'Midday 🌤️', pm: 'Evening 🌙' };
-        const byGroup = {};
-        comp.supplements.forEach(s => {
-            const g = s.timeGroup || 'am';
-            if (!byGroup[g]) byGroup[g] = [];
-            byGroup[g].push(s);
-        });
-
-        for (const [groupKey, groupLabel] of Object.entries(groups)) {
-            if (!byGroup[groupKey] || byGroup[groupKey].length === 0) continue;
-            const label = document.createElement('div');
-            label.className = 'supp-group-label';
-            label.textContent = groupLabel;
-            grid.appendChild(label);
-
-            byGroup[groupKey].forEach(s => {
-                const item = document.createElement('div');
-                item.className = 'ui-picker-item';
-                item.innerHTML = `<span class="pick-check"></span><span class="pick-name">${s.name}</span><span class="pick-desc">${s.dose}</span><span class="pick-rx">${s.time}</span>`;
-                item.addEventListener('click', () => {
-                    item.classList.toggle('selected');
-                    if (item.classList.contains('selected')) selectedIds.add(s.id); else selectedIds.delete(s.id);
-                    confirmBtn.disabled = selectedIds.size === 0;
-                    confirmBtn.textContent = selectedIds.size > 0 ? `Confirm ${selectedIds.size} Supplements` : 'Select at least one';
-                });
-                grid.appendChild(item);
-            });
+        function updateBtn() {
+            if (isDeselect) {
+                const removed = totalCount - selectedIds.size;
+                confirmBtn.textContent = removed > 0
+                    ? `Next → (keeping ${selectedIds.size} of ${totalCount})`
+                    : `Next → (all ${totalCount})`;
+            } else {
+                confirmBtn.textContent = selectedIds.size > 0
+                    ? `Finish → (${selectedIds.size} selected)`
+                    : `Skip → (none selected)`;
+            }
         }
+        updateBtn();
 
-        const confirmBtn = document.createElement('button');
-        confirmBtn.className = 'ui-picker-confirm';
-        confirmBtn.textContent = 'Select at least one';
-        confirmBtn.disabled = true;
         confirmBtn.addEventListener('click', () => {
-            confirmBtn.disabled = true; confirmBtn.textContent = 'Saving...';
+            confirmBtn.disabled = true; confirmBtn.textContent = '⏳ Loading...';
             grid.querySelectorAll('.ui-picker-item').forEach(i => i.style.pointerEvents='none');
-            sendMessage(`Selected ${selectedIds.size} supplements`, { step, data: { supplement_ids: [...selectedIds] } });
+            if (isDeselect) {
+                sendMessage(`Kept ${selectedIds.size} of ${totalCount}`, { step, data: { kept_ids: [...selectedIds] } });
+            } else {
+                sendMessage(`Selected ${selectedIds.size}`, { step, data: { selected_ids: [...selectedIds] } });
+            }
         });
 
         div.appendChild(grid);
         div.appendChild(confirmBtn);
-        container.appendChild(div);
-    }
-    else if (comp.type === 'confirmation') {
-        const div = document.createElement('div');
-        div.className = 'ui-confirm-card';
-        div.innerHTML = `
-            <div class="ui-confirm-stat"><strong>${comp.summary.gym ? '🏋️ Gym' : '🏠 Home'}</strong> workouts</div>
-            <div class="ui-confirm-stat"><strong>${comp.summary.days} days</strong> per week</div>
-            <div class="ui-confirm-stat"><strong>${comp.summary.exercises} exercises</strong> selected</div>
-            <button class="ui-confirm-btn" id="confirmPlanBtn">🚀 Generate My Plan!</button>`;
-        div.querySelector('#confirmPlanBtn').addEventListener('click', function() {
-            this.disabled = true; this.textContent = '⏳ Building your plan...';
-            sendMessage('Generate my plan!', { step: 6, data: {} });
-        });
         container.appendChild(div);
     }
 }
 
 function updateOnboardingBar(step) {
+    // Steps: 0,1,2,3,4,5 → dots 0-5. Step 7 = complete (all done).
+    const dotStep = step >= 7 ? 6 : step;
     document.querySelectorAll('.onboarding-dot').forEach((dot, i) => {
-        dot.classList.toggle('done', i < step);
-        dot.classList.toggle('active', i === step);
+        dot.classList.toggle('done', i < dotStep);
+        dot.classList.toggle('active', i === dotStep);
     });
 }
 

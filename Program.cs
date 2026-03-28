@@ -591,26 +591,53 @@ app.MapPost("/api/ai/chat", async (HttpContext context, RubberJointsAIRepository
                         prefs.DaysPerWeek = selectedDayCount;
                         prefs.OnboardingStep = 2;
                         break;
-                    case 2: // Customization: user deselects exercises they DON'T want
+                    case 2: // Warm-up customization: deselect warmups you don't want
                     {
-                        var excludedIds = new HashSet<string>();
-                        if (selectionData.TryGetProperty("excluded_ids", out var exclEl))
-                        {
-                            foreach (var id in exclEl.EnumerateArray())
-                                excludedIds.Add(id.GetString() ?? "");
-                        }
-                        // Start with ALL exercises, remove excluded ones
-                        var allEx = await repository.GetAllExercisesAsync();
-                        var selectedIds = allEx
-                            .Where(e => !excludedIds.Contains(e.Id))
-                            .Select(e => e.Id).ToList();
-                        prefs.SelectedExercises = string.Join(",", selectedIds);
-                        prefs.SelectedSupplements = "";
+                        var keptIds = new List<string>();
+                        if (selectionData.TryGetProperty("kept_ids", out var keptEl))
+                            foreach (var id in keptEl.EnumerateArray()) keptIds.Add(id.GetString() ?? "");
+                        // Store warmup selections, move to mobility
+                        prefs.SelectedExercises = string.Join(",", keptIds);
+                        prefs.OnboardingStep = 3;
+                        break;
+                    }
+                    case 3: // Mobility customization: deselect mobility you don't want
+                    {
+                        var keptIds = new List<string>();
+                        if (selectionData.TryGetProperty("kept_ids", out var keptEl))
+                            foreach (var id in keptEl.EnumerateArray()) keptIds.Add(id.GetString() ?? "");
+                        // Append mobility to existing warmup selections
+                        var existing = (prefs.SelectedExercises ?? "").Split(',', StringSplitOptions.RemoveEmptyEntries).ToList();
+                        existing.AddRange(keptIds);
+                        prefs.SelectedExercises = string.Join(",", existing);
+                        prefs.OnboardingStep = 4;
+                        break;
+                    }
+                    case 4: // Recovery customization: deselect recovery you don't want
+                    {
+                        var keptIds = new List<string>();
+                        if (selectionData.TryGetProperty("kept_ids", out var keptEl))
+                            foreach (var id in keptEl.EnumerateArray()) keptIds.Add(id.GetString() ?? "");
+                        // Append recovery to existing selections
+                        var existing = (prefs.SelectedExercises ?? "").Split(',', StringSplitOptions.RemoveEmptyEntries).ToList();
+                        existing.AddRange(keptIds);
+                        prefs.SelectedExercises = string.Join(",", existing);
+                        prefs.OnboardingStep = 5;
+                        break;
+                    }
+                    case 5: // Supplements: user opts IN to supplements they want
+                    {
+                        var selectedSuppIds = new List<string>();
+                        if (selectionData.TryGetProperty("selected_ids", out var selEl))
+                            foreach (var id in selEl.EnumerateArray()) selectedSuppIds.Add(id.GetString() ?? "");
+                        prefs.SelectedSupplements = string.Join(",", selectedSuppIds);
                         prefs.OnboardingStep = 7;
                         await repository.SaveUserPreferencesAsync(prefs);
                         await repository.GenerateCustomPlanAsync(userId, prefs);
-                        int exCount = selectedIds.Count;
-                        var custPrompt = $"You are the AI Coach for a hilariously serious joint & mobility workout program. The user '{userId}' just customized their plan! They kept {exCount} exercises (removed {excludedIds.Count}). Their 4-week plan has been generated: {prefs.DaysPerWeek} days/week, each session has warm-up, mobility, and recovery sections that rotate daily. Week 1 starts gentle to build the habit, then gradually increases. Celebrate! Keep it to 2-3 sentences. Make a funny joint/mobility joke. Tell them to tap START TRAINING to begin.";
+                        var exIds = (prefs.SelectedExercises ?? "").Split(',', StringSplitOptions.RemoveEmptyEntries);
+                        int exCount = exIds.Length;
+                        int suppCount = selectedSuppIds.Count;
+                        var custPrompt = $"You are the AI Coach for a hilariously serious joint & mobility workout program. The user '{userId}' just finished customizing their plan! They selected {exCount} exercises and {suppCount} supplements. Their 4-week plan has been generated: {prefs.DaysPerWeek} days/week, each session has warm-up, mobility, and recovery sections that rotate daily. Week 1 starts gentle to build the habit, then gradually increases. Celebrate! Keep it to 2-3 sentences. Make a funny joint/mobility joke. Tell them to tap START TRAINING to begin.";
                         var custText = await CallClaudeAsync(httpFactory, apiKey, custPrompt, "Plan customized!", history);
                         return Results.Json(new { success = true, response = custText, onboarding_step = 7, onboarding_complete = true });
                     }
@@ -626,7 +653,10 @@ app.MapPost("/api/ai/chat", async (HttpContext context, RubberJointsAIRepository
             {
                 0 => "Welcome the user! This is their very first time. Give a warm, short intro to the program: it's a 4-week joint health & mobility program with warm-ups, mobility work, and recovery. The app will show a 'Let's Go' button below. Keep it to 2-3 sentences. Make a funny joint/mobility joke.",
                 1 => "The app will show options below: 'Generate My Plan' (uses all exercises, starts right away) or 'Customize First' (lets them remove exercises they don't want). Keep it to 2 sentences. Say something encouraging.",
-                2 => $"User trains {prefs.DaysPerWeek} days/week. All exercises are shown below — already enabled by default. The user just needs to deselect any they DON'T want in their plan. Say something like 'everything is turned on — just tap to remove anything that doesn't fit'. 2 sentences, be encouraging.",
+                2 => "Time to pick warm-up exercises! Everything is turned on by default — just tap to remove any warm-ups that don't work for you. 1-2 sentences, keep it light.",
+                3 => "Now for mobility exercises! Same deal — everything's enabled, just turn off what you don't want. 1-2 sentences, be encouraging about mobility.",
+                4 => "Last exercise category: recovery tools! Turn off anything you don't have access to. 1-2 sentences, say something fun about recovery.",
+                5 => "Final step: supplements! These are all OFF by default — turn on any you want to track. Totally optional. 1-2 sentences, be chill about it.",
                 _ => "Onboarding complete."
             };
 
@@ -648,6 +678,7 @@ RULES:
 
             // Build UI component for current step
             object? uiComponent = null;
+            var allSupplements = step == 5 ? await repository.GetSupplementsAsync() : new List<RubberJointsAI.Models.Supplement>();
             switch (step)
             {
                 case 0: // Welcome — simple "Let's Go" button
@@ -656,12 +687,32 @@ RULES:
                 case 1: // Generate plan or customize
                     uiComponent = new { type = "plan_or_customize", id = "plan_choice" };
                     break;
-                case 2: // Customization: deselect picker — ALL exercises shown, all enabled by default
+                case 2: // Warm-up exercises (deselect what you don't want)
                 {
-                    var allExForPicker = allExercises
-                        .Select(e => new { id = e.Id, name = e.Name, category = e.Category, description = e.Targets, rx = e.DefaultRx ?? "" })
-                        .ToList();
-                    uiComponent = new { type = "exercise_deselect_picker", id = "customize", exercises = allExForPicker };
+                    var items = allExercises.Where(e => e.Category == "warmup_tool")
+                        .Select(e => new { id = e.Id, name = e.Name, description = e.Targets, rx = e.DefaultRx ?? "" }).ToList();
+                    uiComponent = new { type = "category_deselect_picker", id = "warmup_picker", category_label = "🔥 Warm-Up Exercises", items, mode = "deselect" };
+                    break;
+                }
+                case 3: // Mobility exercises (deselect what you don't want)
+                {
+                    var items = allExercises.Where(e => e.Category == "mobility")
+                        .Select(e => new { id = e.Id, name = e.Name, description = e.Targets, rx = e.DefaultRx ?? "" }).ToList();
+                    uiComponent = new { type = "category_deselect_picker", id = "mobility_picker", category_label = "🧘 Mobility Exercises", items, mode = "deselect" };
+                    break;
+                }
+                case 4: // Recovery exercises (deselect what you don't want)
+                {
+                    var items = allExercises.Where(e => e.Category == "recovery_tool")
+                        .Select(e => new { id = e.Id, name = e.Name, description = e.Targets, rx = e.DefaultRx ?? "" }).ToList();
+                    uiComponent = new { type = "category_deselect_picker", id = "recovery_picker", category_label = "🧊 Recovery Tools", items, mode = "deselect" };
+                    break;
+                }
+                case 5: // Supplements (opt-in: all OFF by default)
+                {
+                    var items = allSupplements
+                        .Select(s => new { id = s.Id, name = s.Name, description = s.Dose ?? "", rx = s.Time ?? "", timeGroup = s.TimeGroup ?? "am" }).ToList();
+                    uiComponent = new { type = "category_deselect_picker", id = "supplement_picker", category_label = "💊 Supplements (Optional)", items, mode = "select" };
                     break;
                 }
             }
