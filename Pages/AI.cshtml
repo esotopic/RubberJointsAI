@@ -252,9 +252,9 @@ async function sendMessage(text, selection) {
                 updateOnboardingBar(data.onboarding_step);
             }
 
-            // Onboarding complete — reload page to unlock tabs
+            // Onboarding complete — show message then go to Workout
             if (data.onboarding_complete) {
-                setTimeout(() => window.location.reload(), 2000);
+                setTimeout(() => window.location.href = '/Index', 4000);
             }
         } else {
             bubble.innerHTML = `<p style="color:var(--red);">Sorry, something went wrong. ${data.error || 'Please try again.'}</p>`;
