@@ -2464,5 +2464,96 @@ namespace RubberJointsAI.Data
 
             return result;
         }
+
+        // ── Custom item creation (AI-driven add to plan) ──
+
+        /// <summary>
+        /// Creates a new exercise in the Exercises table if it doesn't exist,
+        /// adds it to UserPreferences.SelectedExercises, and regenerates the plan.
+        /// Returns the exercise ID.
+        /// </summary>
+        public async Task<string> CreateCustomExerciseAsync(string userId, string id, string name, string category, string targets, string defaultRx)
+        {
+            using var connection = new SqlConnection(_connectionString);
+            await connection.OpenAsync();
+
+            // Insert exercise if it doesn't exist
+            using (var cmd = connection.CreateCommand())
+            {
+                cmd.CommandText = @"
+                    IF NOT EXISTS (SELECT 1 FROM Exercises WHERE Id = @id)
+                    INSERT INTO Exercises (Id, Name, Category, Targets, Description, DefaultRx)
+                    VALUES (@id, @name, @category, @targets, '', @rx)";
+                cmd.Parameters.AddWithValue("@id", id);
+                cmd.Parameters.AddWithValue("@name", name);
+                cmd.Parameters.AddWithValue("@category", category);
+                cmd.Parameters.AddWithValue("@targets", targets);
+                cmd.Parameters.AddWithValue("@rx", (object?)defaultRx ?? DBNull.Value);
+                await cmd.ExecuteNonQueryAsync();
+            }
+
+            // Add to user preferences and regenerate plan
+            var prefs = await GetUserPreferencesAsync(userId);
+            if (prefs != null)
+            {
+                var ids = (prefs.SelectedExercises ?? "").Split(',', StringSplitOptions.RemoveEmptyEntries).ToList();
+                if (!ids.Contains(id))
+                {
+                    ids.Add(id);
+                    prefs.SelectedExercises = string.Join(",", ids);
+                    await SaveUserPreferencesAsync(prefs);
+                    await RegenerateFuturePlanAsync(userId, prefs);
+                }
+            }
+
+            return id;
+        }
+
+        /// <summary>
+        /// Creates a new supplement in the Supplements table if it doesn't exist,
+        /// adds it to UserPreferences.SelectedSupplements, and adds to UserSupplements.
+        /// Returns the supplement ID.
+        /// </summary>
+        public async Task<string> CreateCustomSupplementAsync(string userId, string id, string name, string dose, string time, string timeGroup)
+        {
+            using var connection = new SqlConnection(_connectionString);
+            await connection.OpenAsync();
+
+            // Insert supplement if it doesn't exist
+            using (var cmd = connection.CreateCommand())
+            {
+                cmd.CommandText = @"
+                    IF NOT EXISTS (SELECT 1 FROM Supplements WHERE Id = @id)
+                    INSERT INTO Supplements (Id, Name, Dose, Time, TimeGroup)
+                    VALUES (@id, @name, @dose, @time, @timeGroup)";
+                cmd.Parameters.AddWithValue("@id", id);
+                cmd.Parameters.AddWithValue("@name", name);
+                cmd.Parameters.AddWithValue("@dose", (object?)dose ?? DBNull.Value);
+                cmd.Parameters.AddWithValue("@time", (object?)time ?? DBNull.Value);
+                cmd.Parameters.AddWithValue("@timeGroup", timeGroup);
+                await cmd.ExecuteNonQueryAsync();
+            }
+
+            // Add to user preferences
+            var prefs = await GetUserPreferencesAsync(userId);
+            if (prefs != null)
+            {
+                var ids = (prefs.SelectedSupplements ?? "").Split(',', StringSplitOptions.RemoveEmptyEntries).ToList();
+                if (!ids.Contains(id))
+                {
+                    ids.Add(id);
+                    prefs.SelectedSupplements = string.Join(",", ids);
+                    await SaveUserPreferencesAsync(prefs);
+                }
+            }
+
+            // Add to UserSupplements table
+            var pst = TimeZoneInfo.FindSystemTimeZoneById("America/Los_Angeles");
+            var pacificNow = TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, pst);
+            string today = pacificNow.ToString("yyyy-MM-dd");
+            await AddUserSupplementAsync(userId, id, timeGroup, today);
+
+            return id;
+        }
     }
 }

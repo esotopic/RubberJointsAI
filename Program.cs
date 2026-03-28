@@ -834,7 +834,35 @@ RULES:
         sb2.AppendLine("=== TOOL USE ===");
         sb2.AppendLine("You have tools to modify the user's plan. Use them when the user asks to add/remove exercises, change supplements, or adjust their schedule.");
         sb2.AppendLine("After using a tool, confirm what changed in a friendly way.");
-        sb2.AppendLine("When adding exercises, use get_all_exercises first to see what's available.");
+        sb2.AppendLine("When adding exercises, use get_all_exercises first to see what's available. If the item is already in the catalog, use add_exercise_to_plan or add_supplement. If it's NOT in the catalog, use create_custom_exercise or create_custom_supplement.");
+        sb2.AppendLine();
+        sb2.AppendLine("=== ADDING CUSTOM ITEMS TO PLAN ===");
+        sb2.AppendLine("Users can ask to add exercises, recovery tools, or supplements not yet in the system. Follow this flow:");
+        sb2.AppendLine("1. FIRST check if the item already exists using get_all_exercises or get_all_supplements.");
+        sb2.AppendLine("2. If it exists, enable it with add_exercise_to_plan or add_supplement.");
+        sb2.AppendLine("3. If it does NOT exist, confirm the CATEGORY with the user before creating. Suggest the right category and ask for confirmation.");
+        sb2.AppendLine("   - For exercises: suggest warmup_tool, mobility, or recovery_tool. Say: 'I think [item] fits best under [Recovery/Warm-Up/Mobility]. Sound right?'");
+        sb2.AppendLine("   - For supplements: ask about timing. Say: 'When do you take [supplement]? Morning, midday, or evening?'");
+        sb2.AppendLine("4. After confirmation, use create_custom_exercise or create_custom_supplement to add it.");
+        sb2.AppendLine("5. Confirm it was added and mention they can toggle it on/off in Settings.");
+        sb2.AppendLine();
+        sb2.AppendLine("=== CRITICAL SAFETY RULES FOR CUSTOM ITEMS ===");
+        sb2.AppendLine("This is a JOINT HEALTH and MOBILITY program. You must REJECT requests to add items that don't belong. Be firm but friendly.");
+        sb2.AppendLine();
+        sb2.AppendLine("ALLOWED categories ONLY: warmup_tool, mobility, recovery_tool, or supplement.");
+        sb2.AppendLine("NEVER create new categories. NEVER allow items outside joint health/mobility/recovery/wellness.");
+        sb2.AppendLine();
+        sb2.AppendLine("REJECT with a friendly explanation:");
+        sb2.AppendLine("- Strength/gym exercises: bench press, deadlift, squats (barbell), pull-ups, bicep curls, shoulder press, etc. Say: 'This is a joint mobility program — we focus on keeping your joints happy, not bodybuilding! Try a dedicated gym app for strength training.'");
+        sb2.AppendLine("- Cardio machines used for cardio (not recovery): running, sprinting, cycling for fitness. Exception: gentle warm-up versions (brisk walking, light cycling) ARE fine.");
+        sb2.AppendLine("- Weapons, firearms, or anything dangerous: 'Nice try, but a gun won't help your joints! 😄'");
+        sb2.AppendLine("- Illegal substances, recreational drugs: 'That's not in our supplement catalog and never will be! Stick to the legal stuff.'");
+        sb2.AppendLine("- Food items, meals, snacks: 'We track supplements, not meals. Your joints appreciate the thought though!'");
+        sb2.AppendLine("- Random objects or joke items: 'Ha! Creative, but [item] isn't going to help your hip flexors. 😄'");
+        sb2.AppendLine("- Any item that could cause harm or injury");
+        sb2.AppendLine();
+        sb2.AppendLine("ALLOWED exercise examples: ice bath, cold plunge, sauna, infrared sauna, percussion massage, TENS unit, inversion table, resistance bands, foam roller, lacrosse ball, yoga, tai chi, pilates, swimming (recovery), stretching tools, balance board, wobble board, etc.");
+        sb2.AppendLine("ALLOWED supplement examples: collagen, MSM, turmeric, omega-3, glucosamine, vitamin D, magnesium, hyaluronic acid, boswellia, CBD oil, tart cherry, bromelain, etc.");
         sb2.AppendLine();
 
         sb2.AppendLine("=== LIVE USER DATA ===");
@@ -890,7 +918,24 @@ RULES:
             new { name = "get_all_supplements", description = "Get all available supplements in the system",
                 input_schema = new { type = "object", properties = new { } } },
             new { name = "update_training_days", description = "Change how many days per week the user trains and regenerate plan",
-                input_schema = new { type = "object", properties = new { days_per_week = new { type = "integer" } }, required = new[] { "days_per_week" } } }
+                input_schema = new { type = "object", properties = new { days_per_week = new { type = "integer" } }, required = new[] { "days_per_week" } } },
+            new { name = "create_custom_exercise", description = "Create a new exercise and add it to the user's plan. ONLY for joint health items: warm-up, mobility, or recovery tools. Categories must be warmup_tool, mobility, or recovery_tool. NEVER for strength/gym exercises.",
+                input_schema = new { type = "object",
+                    properties = new {
+                        name = new { type = "string", description = "Display name (e.g. 'Ice Bath')" },
+                        category = new { type = "string", description = "Must be: warmup_tool, mobility, or recovery_tool" },
+                        targets = new { type = "string", description = "Body areas targeted (e.g. 'Full Body')" },
+                        default_rx = new { type = "string", description = "Recommended prescription (e.g. '10 min', '30 sec each')" }
+                    },
+                    required = new[] { "name", "category", "targets", "default_rx" } } },
+            new { name = "create_custom_supplement", description = "Create a new supplement and add it to the user's daily routine. ONLY for supplements related to joint health, recovery, or general wellness.",
+                input_schema = new { type = "object",
+                    properties = new {
+                        name = new { type = "string", description = "Supplement name (e.g. 'Hyaluronic Acid')" },
+                        time = new { type = "string", description = "When to take it (e.g. 'AM with food', 'Post-workout')" },
+                        time_group = new { type = "string", description = "Must be: am, mid, or pm" }
+                    },
+                    required = new[] { "name", "time", "time_group" } } }
         };
 
         // Build messages array
@@ -1045,6 +1090,83 @@ RULES:
                             }
                             else toolResult = "No preferences found.";
                             break;
+                        case "create_custom_exercise":
+                        {
+                            string ceName = toolInput.GetProperty("name").GetString() ?? "";
+                            string ceCat = toolInput.GetProperty("category").GetString() ?? "";
+                            string ceTargets = toolInput.GetProperty("targets").GetString() ?? "";
+                            string ceRx = toolInput.GetProperty("default_rx").GetString() ?? "";
+                            // Validate category
+                            var validCats = new HashSet<string> { "warmup_tool", "mobility", "recovery_tool" };
+                            if (!validCats.Contains(ceCat))
+                            {
+                                toolResult = $"ERROR: Invalid category '{ceCat}'. Must be warmup_tool, mobility, or recovery_tool.";
+                                break;
+                            }
+                            // Generate ID from name
+                            string ceId = System.Text.RegularExpressions.Regex.Replace(ceName.ToLower().Trim(), @"[^a-z0-9]+", "-").Trim('-');
+                            // Check if it already exists in catalog
+                            var existingEx = allExercises2.FirstOrDefault(e => e.Id == ceId || e.Name.Equals(ceName, StringComparison.OrdinalIgnoreCase));
+                            if (existingEx != null)
+                            {
+                                // Already exists — just toggle it on
+                                var tPrefs = await repository.GetUserPreferencesAsync(userId);
+                                if (tPrefs != null)
+                                {
+                                    var tIds = (tPrefs.SelectedExercises ?? "").Split(',', StringSplitOptions.RemoveEmptyEntries).ToList();
+                                    if (!tIds.Contains(existingEx.Id))
+                                    {
+                                        tIds.Add(existingEx.Id);
+                                        tPrefs.SelectedExercises = string.Join(",", tIds);
+                                        await repository.SaveUserPreferencesAsync(tPrefs);
+                                        await repository.RegenerateFuturePlanAsync(userId, tPrefs);
+                                    }
+                                }
+                                toolResult = $"Found existing exercise '{existingEx.Name}' (id: {existingEx.Id}) and enabled it in the plan.";
+                            }
+                            else
+                            {
+                                await repository.CreateCustomExerciseAsync(userId, ceId, ceName, ceCat, ceTargets, ceRx);
+                                toolResult = $"Created new exercise '{ceName}' (id: {ceId}, category: {ceCat}) and added to plan. It will appear in Settings and future workouts.";
+                            }
+                            break;
+                        }
+                        case "create_custom_supplement":
+                        {
+                            string csName = toolInput.GetProperty("name").GetString() ?? "";
+                            string csTime = toolInput.GetProperty("time").GetString() ?? "";
+                            string csTg = toolInput.GetProperty("time_group").GetString() ?? "am";
+                            // Validate time_group
+                            var validTgs = new HashSet<string> { "am", "mid", "pm" };
+                            if (!validTgs.Contains(csTg)) csTg = "am";
+                            // Generate ID from name
+                            string csId = System.Text.RegularExpressions.Regex.Replace(csName.ToLower().Trim(), @"[^a-z0-9]+", "-").Trim('-');
+                            // Check if it already exists
+                            var existingSupp = supplements2.FirstOrDefault(s => s.Id == csId || s.Name.Equals(csName, StringComparison.OrdinalIgnoreCase));
+                            if (existingSupp != null)
+                            {
+                                // Already exists — just toggle it on
+                                var tPrefs = await repository.GetUserPreferencesAsync(userId);
+                                if (tPrefs != null)
+                                {
+                                    var tIds = (tPrefs.SelectedSupplements ?? "").Split(',', StringSplitOptions.RemoveEmptyEntries).ToList();
+                                    if (!tIds.Contains(existingSupp.Id))
+                                    {
+                                        tIds.Add(existingSupp.Id);
+                                        tPrefs.SelectedSupplements = string.Join(",", tIds);
+                                        await repository.SaveUserPreferencesAsync(tPrefs);
+                                    }
+                                    await repository.AddUserSupplementAsync(userId, existingSupp.Id, csTg, todayDate);
+                                }
+                                toolResult = $"Found existing supplement '{existingSupp.Name}' (id: {existingSupp.Id}) and enabled it.";
+                            }
+                            else
+                            {
+                                await repository.CreateCustomSupplementAsync(userId, csId, csName, "", csTime, csTg);
+                                toolResult = $"Created new supplement '{csName}' (id: {csId}, timing: {csTime}) and added to daily routine. It will appear in Settings.";
+                            }
+                            break;
+                        }
                     }
                 }
                 catch (Exception ex) { toolResult = $"Error: {ex.Message}"; }

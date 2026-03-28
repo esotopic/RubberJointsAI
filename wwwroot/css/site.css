@@ -2565,6 +2565,12 @@ a.cal-day:active {
   border-color: var(--acc);
   color: var(--acc);
 }
+.ai-chip-add {
+  background: rgba(74, 108, 247, 0.06);
+  border-color: var(--acc);
+  color: var(--acc);
+  font-weight: 600;
+}
 
 /* --- Fixed bottom block: chips + input + disclaimer --- */
 .ai-bottom-fixed {
