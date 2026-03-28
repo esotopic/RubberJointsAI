@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
+using Microsoft.Extensions.Caching.Memory;
 using RubberJointsAI.Data;
 using RubberJointsAI.Models;
 
@@ -10,15 +11,17 @@ namespace RubberJointsAI.Pages
     public class IndexModel : PageModel
     {
         private readonly RubberJointsAIRepository _repository;
+        private readonly IMemoryCache _cache;
 
         public TodayViewModel ViewModel { get; set; } = new();
 
         [BindProperty(SupportsGet = true)]
         public string? Date { get; set; }
 
-        public IndexModel(RubberJointsAIRepository repository)
+        public IndexModel(RubberJointsAIRepository repository, IMemoryCache cache)
         {
             _repository = repository;
+            _cache = cache;
         }
 
         private static DateTime GetPacificNow()
@@ -45,8 +48,52 @@ namespace RubberJointsAI.Pages
 
             try
             {
-                // Check enrollment
-                var enrollment = await _repository.GetActiveEnrollmentAsync(userId);
+                // Try prefetch cache first (only for today's date — AI page warms this in background)
+                string cacheKey = $"today-prefetch:{userId}:{selectedDateStr}";
+                Dictionary<string, object?>? cached = null;
+                if (isToday && _cache.TryGetValue(cacheKey, out cached) && cached != null)
+                {
+                    _cache.Remove(cacheKey); // one-time use
+                }
+
+                // === Resolve all data: from cache if available, otherwise from DB ===
+                UserEnrollment? enrollment;
+                List<UserDailyPlanEntry> planEntries;
+                UserSettings? settings;
+                List<Exercise> allExercises;
+                List<DailyCheck> dailyChecks;
+                List<Supplement> userSupplements;
+
+                if (cached != null)
+                {
+                    // Use prefetched data from AI page background cache
+                    enrollment = cached.TryGetValue("enrollment", out var e) ? e as UserEnrollment : null;
+                    planEntries = cached.TryGetValue("plan", out var p) && p is List<UserDailyPlanEntry> pl ? pl : new();
+                    settings = cached.TryGetValue("settings", out var s) ? s as UserSettings : null;
+                    allExercises = cached.TryGetValue("exercises", out var ex) && ex is List<Exercise> exl ? exl : new();
+                    dailyChecks = cached.TryGetValue("checks", out var ch) && ch is List<DailyCheck> chl ? chl : new();
+                    userSupplements = cached.TryGetValue("supplements", out var su) && su is List<Supplement> sul ? sul : new();
+                }
+                else
+                {
+                    // Normal path: run all independent queries in parallel
+                    var enrollmentTask = _repository.GetActiveEnrollmentAsync(userId);
+                    var planTask = _repository.GetUserDailyPlanAsync(userId, selectedDateStr);
+                    var settingsTask = _repository.GetUserSettingsAsync(userId);
+                    var exercisesTask = _repository.GetAllExercisesAsync();
+                    var checksTask = _repository.GetDailyChecksAsync(userId, selectedDateStr);
+                    var supplementsTask = _repository.GetUserSupplementsForDateAsync(userId, selectedDateStr);
+
+                    await Task.WhenAll(enrollmentTask, planTask, settingsTask, exercisesTask, checksTask, supplementsTask);
+
+                    enrollment = await enrollmentTask;
+                    planEntries = await planTask;
+                    settings = await settingsTask;
+                    allExercises = await exercisesTask;
+                    dailyChecks = await checksTask;
+                    userSupplements = await supplementsTask;
+                }
+
                 if (enrollment == null)
                 {
                     ViewModel.ErrorMessage = "NO_ENROLLMENT";
@@ -61,18 +108,7 @@ namespace RubberJointsAI.Pages
                     week = Math.Max(1, daysSince / 7 + 1);
                 }
 
-                // Run independent queries in parallel for speed
-                var planTask = _repository.GetUserDailyPlanAsync(userId, selectedDateStr);
-                var settingsTask = _repository.GetUserSettingsAsync(userId);
-                var exercisesTask = _repository.GetAllExercisesAsync();
-                var checksTask = _repository.GetDailyChecksAsync(userId, selectedDateStr);
-                var supplementsTask = _repository.GetUserSupplementsForDateAsync(userId, selectedDateStr);
-
-                await Task.WhenAll(planTask, settingsTask, exercisesTask, checksTask, supplementsTask);
-
-                var planEntries = await planTask;
-                var settings = await settingsTask;
-                var disabledToolIds = (settings?.DisabledTools ?? "").Split(',', System.StringSplitOptions.RemoveEmptyEntries).ToHashSet();
+                var disabledToolIds = (settings?.DisabledTools ?? "").Split(',', StringSplitOptions.RemoveEmptyEntries).ToHashSet();
 
                 // Filter out disabled tools
                 planEntries = planEntries.Where(e => !disabledToolIds.Contains(e.ExerciseId)).ToList();
@@ -82,10 +118,7 @@ namespace RubberJointsAI.Pages
 
                 (string sessionType, int estMinutes, string location) = GetSessionDetails(dayType);
 
-                var allExercises = await exercisesTask;
                 var exerciseMap = allExercises.ToDictionary(e => e.Id);
-
-                var dailyChecks = await checksTask;
                 var checkMap = dailyChecks.ToDictionary(c => $"{c.ItemType}:{c.ItemId}:{c.StepIndex}", c => c.Checked);
 
                 // Build steps from plan entries
@@ -110,12 +143,10 @@ namespace RubberJointsAI.Pages
                     }
                 }
 
-                // Supplements already fetched in parallel above
-                var userSupplements = await supplementsTask;
+                // Build supplement checks
                 var supplementChecks = new List<SupplementCheck>();
                 foreach (var supp in userSupplements)
                 {
-                    // Use timeGroup index as StepIndex so same supplement in different groups gets separate checks
                     int tgIndex = supp.TimeGroup switch { "am" => 0, "mid" => 1, "pm" => 2, _ => 0 };
                     string checkKey = $"supplement:{supp.Id}:{tgIndex}";
                     bool isChecked = checkMap.TryGetValue(checkKey, out var val) && val;

@@ -86,8 +86,11 @@
                 </div>
             </div>
 
-            <!-- Quick chips — inside scroll area -->
-            <div class="ai-suggestions-inline" id="aiSuggestions">
+        </div>
+
+        <!-- FIXED BOTTOM: chips + input + disclaimer — never scrolls -->
+        <div class="ai-bottom-fixed">
+            <div class="ai-suggestions-fixed" id="aiSuggestions">
                 <button class="ai-chip" data-prompt="Give me a status update on where I am in my program — what week, what I've completed today, and how my overall progress looks.">
                     My status
                 </button>
@@ -98,10 +101,6 @@
                     Weekly progress
                 </button>
             </div>
-        </div>
-
-        <!-- Input + disclaimer — fixed bottom -->
-        <div class="ai-input-area">
             <div class="ai-input-wrapper">
                 <textarea class="ai-input" id="aiInput" placeholder="Ask your AI coach..." rows="1"></textarea>
                 <button class="ai-send-btn" id="aiSendBtn" disabled>
@@ -364,4 +363,7 @@
             }, 300);
         }
     })();
+
+    // === Prefetch Today page data in background to warm server cache ===
+    fetch('/api/today-prefetch', { credentials: 'same-origin' }).catch(() => {});
 </script>

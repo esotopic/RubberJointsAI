@@ -7,6 +7,7 @@ using RubberJointsAI.Data;
 var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container
+builder.Services.AddMemoryCache();
 builder.Services.AddRazorPages(options =>
 {
     options.Conventions.ConfigureFilter(new Microsoft.AspNetCore.Mvc.IgnoreAntiforgeryTokenAttribute());
@@ -91,6 +92,51 @@ app.Use(async (context, next) =>
 app.MapRazorPages();
 
 // ── Minimal API endpoints (bypass Razor Pages routing for reliable JSON responses) ──
+
+// ── Prefetch Today page data into memory cache (called from AI page in background) ──
+app.MapGet("/api/today-prefetch", async (HttpContext context, RubberJointsAIRepository repository, Microsoft.Extensions.Caching.Memory.IMemoryCache cache) =>
+{
+    if (context.User.Identity?.IsAuthenticated != true)
+        return Results.Unauthorized();
+
+    string userId = context.User.Identity?.Name ?? "default";
+    var pst = TimeZoneInfo.FindSystemTimeZoneById("America/Los_Angeles");
+    var pacificNow = TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, pst);
+    string todayDate = pacificNow.ToString("yyyy-MM-dd");
+
+    try
+    {
+        // Run all queries in parallel — same ones Index.cshtml.cs needs
+        var enrollmentTask = repository.GetActiveEnrollmentAsync(userId);
+        var planTask = repository.GetUserDailyPlanAsync(userId, todayDate);
+        var settingsTask = repository.GetUserSettingsAsync(userId);
+        var exercisesTask = repository.GetAllExercisesAsync();
+        var checksTask = repository.GetDailyChecksAsync(userId, todayDate);
+        var supplementsTask = repository.GetUserSupplementsForDateAsync(userId, todayDate);
+
+        await Task.WhenAll(enrollmentTask, planTask, settingsTask, exercisesTask, checksTask, supplementsTask);
+
+        // Store raw query results in cache keyed by userId
+        string cacheKey = $"today-prefetch:{userId}:{todayDate}";
+        var cachedData = new Dictionary<string, object?>
+        {
+            ["enrollment"] = await enrollmentTask,
+            ["plan"] = await planTask,
+            ["settings"] = await settingsTask,
+            ["exercises"] = await exercisesTask,
+            ["checks"] = await checksTask,
+            ["supplements"] = await supplementsTask,
+            ["todayDate"] = todayDate
+        };
+
+        cache.Set(cacheKey, cachedData, TimeSpan.FromSeconds(60));
+        return Results.Json(new { success = true, cached = true });
+    }
+    catch
+    {
+        return Results.Json(new { success = false });
+    }
+});
 
 app.MapPost("/api/check", async (HttpContext context, RubberJointsAIRepository repository) =>
 {

@@ -2486,6 +2486,23 @@ a.cal-day:active {
   color: var(--acc);
 }
 
+/* --- Fixed bottom block: chips + input + disclaimer --- */
+.ai-bottom-fixed {
+  flex-shrink: 0;
+  padding: 6px 12px 8px;
+  background: var(--bg);
+  border-top: 1px solid var(--s3);
+}
+
+.ai-suggestions-fixed {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 6px;
+  margin-bottom: 6px;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
 /* --- Input area --- */
 .ai-input-area {
   padding: 8px 12px 12px;
