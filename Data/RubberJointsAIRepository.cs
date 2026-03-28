@@ -865,7 +865,7 @@ namespace RubberJointsAI.Data
                                 Cues = reader.IsDBNull(5) ? null : reader.GetString(5),
                                 Explanation = reader.IsDBNull(6) ? null : reader.GetString(6),
                                 Warning = reader.IsDBNull(7) ? null : reader.GetString(7),
-                                Phases = reader.GetString(8)
+                                Phases = reader.IsDBNull(8) ? "1,2,3,4" : reader.GetString(8)
                             };
                         }
                     }
@@ -1726,7 +1726,7 @@ namespace RubberJointsAI.Data
                     Cues = reader.IsDBNull(5) ? null : reader.GetString(5),
                     Explanation = reader.IsDBNull(6) ? null : reader.GetString(6),
                     Warning = reader.IsDBNull(7) ? null : reader.GetString(7),
-                    Phases = reader.GetString(8),
+                    Phases = reader.IsDBNull(8) ? "1,2,3,4" : reader.GetString(8),
                     DefaultRx = reader.IsDBNull(9) ? null : reader.GetString(9)
                 });
             }
