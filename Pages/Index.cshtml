@@ -75,45 +75,36 @@
         }
 
         <div class="progress-bars">
-            @if (warmupTotal > 0)
-            {
-                <div class="progress-row">
-                    <div class="progress-label">
-                        <span class="progress-dot" style="background:#ff9500;"></span>
-                        <span>Warm-up</span>
-                    </div>
-                    <div class="progress-track">
-                        <div class="progress-fill" id="bar-warmup_tool" style="width:@(warmupTotal > 0 ? (warmupDone * 100 / warmupTotal) : 0)%;background:#ff9500;"></div>
-                    </div>
-                    <span class="progress-count" id="count-warmup_tool">@warmupDone/@warmupTotal</span>
+            <div class="progress-row">
+                <div class="progress-label">
+                    <span class="progress-dot" style="background:#ff9500;"></span>
+                    <span>Warm-up</span>
                 </div>
-            }
-            @if (mobilityTotal > 0)
-            {
-                <div class="progress-row">
-                    <div class="progress-label">
-                        <span class="progress-dot" style="background:#34c759;"></span>
-                        <span>Mobility</span>
-                    </div>
-                    <div class="progress-track">
-                        <div class="progress-fill" id="bar-mobility" style="width:@(mobilityTotal > 0 ? (mobilityDone * 100 / mobilityTotal) : 0)%;background:#34c759;"></div>
-                    </div>
-                    <span class="progress-count" id="count-mobility">@mobilityDone/@mobilityTotal</span>
+                <div class="progress-track">
+                    <div class="progress-fill" id="bar-warmup_tool" style="width:@(warmupTotal > 0 ? (warmupDone * 100 / warmupTotal) : 0)%;background:#ff9500;"></div>
                 </div>
-            }
-            @if (recoveryTotal > 0)
-            {
-                <div class="progress-row">
-                    <div class="progress-label">
-                        <span class="progress-dot" style="background:#4a6cf7;"></span>
-                        <span>Recovery</span>
-                    </div>
-                    <div class="progress-track">
-                        <div class="progress-fill" id="bar-recovery_tool" style="width:@(recoveryTotal > 0 ? (recoveryDone * 100 / recoveryTotal) : 0)%;background:#4a6cf7;"></div>
-                    </div>
-                    <span class="progress-count" id="count-recovery_tool">@recoveryDone/@recoveryTotal</span>
+                <span class="progress-count" id="count-warmup_tool">@warmupDone/@warmupTotal</span>
+            </div>
+            <div class="progress-row">
+                <div class="progress-label">
+                    <span class="progress-dot" style="background:#34c759;"></span>
+                    <span>Mobility</span>
                 </div>
-            }
+                <div class="progress-track">
+                    <div class="progress-fill" id="bar-mobility" style="width:@(mobilityTotal > 0 ? (mobilityDone * 100 / mobilityTotal) : 0)%;background:#34c759;"></div>
+                </div>
+                <span class="progress-count" id="count-mobility">@mobilityDone/@mobilityTotal</span>
+            </div>
+            <div class="progress-row">
+                <div class="progress-label">
+                    <span class="progress-dot" style="background:#4a6cf7;"></span>
+                    <span>Recovery</span>
+                </div>
+                <div class="progress-track">
+                    <div class="progress-fill" id="bar-recovery_tool" style="width:@(recoveryTotal > 0 ? (recoveryDone * 100 / recoveryTotal) : 0)%;background:#4a6cf7;"></div>
+                </div>
+                <span class="progress-count" id="count-recovery_tool">@recoveryDone/@recoveryTotal</span>
+            </div>
             <div class="progress-row">
                 <div class="progress-label">
                     <span class="progress-dot" style="background:#ffcc00;"></span>
