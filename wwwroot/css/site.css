@@ -2621,35 +2621,35 @@ a.cal-day:active {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 12px;
+  gap: 10px;
   width: 100%;
-  padding: 20px 24px;
-  margin: 8px 0 14px;
+  padding: 10px 24px;
+  margin: 0;
   background: linear-gradient(135deg, #34c759 0%, #30d158 50%, #28c74e 100%);
   color: white;
-  font-size: 20px;
+  font-size: 15px;
   font-weight: 900;
   letter-spacing: 2px;
   text-decoration: none;
-  border: 3px solid rgba(255,255,255,0.25);
-  border-radius: 16px;
+  border: none;
+  border-bottom: 2px solid rgba(0,0,0,0.1);
+  border-radius: 0;
   cursor: pointer;
-  box-shadow: 0 6px 20px rgba(52, 199, 89, 0.45);
+  flex-shrink: 0;
+  box-shadow: 0 2px 8px rgba(52, 199, 89, 0.35);
   transition: all 0.2s ease;
-  animation: aiFadeIn 0.7s ease, aiPulseGlow 2s ease-in-out infinite;
+  animation: aiPulseGlow 2s ease-in-out infinite;
 }
 .ai-start-training-btn:hover {
   background: linear-gradient(135deg, #2db84e, #28c74e);
-  transform: translateY(-1px);
-  box-shadow: 0 6px 20px rgba(52, 199, 89, 0.55);
+  box-shadow: 0 2px 12px rgba(52, 199, 89, 0.55);
 }
 .ai-start-training-btn:active {
-  transform: translateY(0);
-  box-shadow: 0 2px 8px rgba(52, 199, 89, 0.3);
+  box-shadow: 0 1px 4px rgba(52, 199, 89, 0.3);
 }
 @keyframes aiPulseGlow {
-  0%, 100% { box-shadow: 0 4px 14px rgba(52, 199, 89, 0.4); }
-  50% { box-shadow: 0 4px 24px rgba(52, 199, 89, 0.65); }
+  0%, 100% { box-shadow: 0 2px 8px rgba(52, 199, 89, 0.35); }
+  50% { box-shadow: 0 2px 16px rgba(52, 199, 89, 0.6); }
 }
 
 /* --- Welcome text reveal --- */

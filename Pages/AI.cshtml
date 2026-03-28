@@ -85,6 +85,11 @@
             </div>
         </div>
 
+        <!-- START TRAINING — fixed right below the status bar -->
+        <a href="/" class="ai-start-training-btn">
+            🔥 START TRAINING 💪
+        </a>
+
         <!-- Messages area -->
         <div class="ai-messages" id="aiMessages">
 
@@ -146,11 +151,6 @@
                     }
                 </div>
             </div>
-
-            <!-- BIG START TRAINING BUTTON -->
-            <a href="/" class="ai-start-training-btn">
-                🔥 START TRAINING 💪
-            </a>
 
             <!-- AI intro -->
             <div class="ai-message ai-message-assistant">
@@ -405,8 +405,8 @@
     // === New Chat ===
     document.getElementById('newChatBtn').addEventListener('click', function() {
         const messagesDiv = document.getElementById('aiMessages');
-        // Keep the joke card, info card, start btn, and AI intro (first 4 children)
-        while (messagesDiv.children.length > 4) {
+        // Keep the joke card, info card, and AI intro (first 3 children)
+        while (messagesDiv.children.length > 3) {
             messagesDiv.removeChild(messagesDiv.lastChild);
         }
         showNewJoke();
