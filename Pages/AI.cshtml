@@ -33,21 +33,6 @@
     .ui-confirm-stat { font-size:13px; color:var(--tx2); margin:4px 0; }
     .ui-confirm-stat strong { color:var(--tx1); }
     .ui-confirm-btn { display:block; width:100%; padding:14px; background:linear-gradient(135deg, var(--acc), #34c759); color:#fff; border:none; border-radius:12px; font-size:16px; font-weight:700; cursor:pointer; margin-top:12px; letter-spacing:0.02em; }
-    /* Add-my-own button in pickers */
-    .ui-add-own-btn { display:block; width:100%; padding:11px; background:rgba(74,108,247,0.06); color:var(--acc); border:2px dashed var(--acc); border-radius:12px; font-size:13px; font-weight:600; cursor:pointer; margin-top:8px; text-align:center; }
-    .ui-add-own-btn:hover { background:rgba(74,108,247,0.12); }
-    /* Mini-chat for adding items during onboarding */
-    .add-own-chat { margin-top:10px; }
-    .add-own-chat .add-chat-input-row { display:flex; gap:8px; margin-top:8px; }
-    .add-own-chat .add-chat-input { flex:1; padding:10px 12px; border:2px solid var(--bdr); border-radius:10px; font-size:14px; background:var(--card); color:var(--tx1); outline:none; }
-    .add-own-chat .add-chat-input:focus { border-color:var(--acc); }
-    .add-own-chat .add-chat-send { padding:10px 16px; background:var(--acc); color:#fff; border:none; border-radius:10px; font-size:14px; font-weight:600; cursor:pointer; }
-    .add-own-chat .add-chat-send:disabled { opacity:0.4; cursor:default; }
-    .add-own-chat .add-chat-messages { max-height:200px; overflow-y:auto; margin-top:8px; }
-    .add-own-chat .add-chat-msg { padding:8px 10px; border-radius:10px; margin:4px 0; font-size:13px; line-height:1.4; }
-    .add-own-chat .add-chat-msg.user { background:var(--acc); color:#fff; margin-left:20%; text-align:right; }
-    .add-own-chat .add-chat-msg.assistant { background:var(--card); border:1px solid var(--bdr); color:var(--tx1); margin-right:20%; }
-    .add-own-chat .add-chat-done { display:block; width:100%; padding:11px; background:linear-gradient(135deg,#34c759,#30b350); color:#fff; border:none; border-radius:10px; font-size:14px; font-weight:600; cursor:pointer; margin-top:8px; }
     /* Onboarding progress bar */
     .onboarding-bar { display:flex; gap:3px; padding:8px 16px; }
     .onboarding-dot { flex:1; height:4px; border-radius:2px; background:var(--bdr); transition:background .3s; }
@@ -389,7 +374,6 @@ function renderUIComponent(container, comp, step) {
         confirmBtn.addEventListener('click', () => {
             confirmBtn.disabled = true; confirmBtn.textContent = '⏳ Loading...';
             grid.querySelectorAll('.ui-picker-item').forEach(i => i.style.pointerEvents='none');
-            addOwnBtn.style.display = 'none';
             if (isDeselect) {
                 sendMessage(`Kept ${selectedIds.size} of ${totalCount}`, { step, data: { kept_ids: [...selectedIds] } });
             } else {
@@ -397,130 +381,10 @@ function renderUIComponent(container, comp, step) {
             }
         });
 
-        // "Add my own" button
-        const addOwnBtn = document.createElement('button');
-        addOwnBtn.className = 'ui-add-own-btn';
-        addOwnBtn.textContent = '＋ Add something not listed';
-        addOwnBtn.addEventListener('click', () => {
-            addOwnBtn.style.display = 'none';
-            grid.style.display = 'none';
-            confirmBtn.style.display = 'none';
-            const chatArea = buildAddOwnChat(comp, step, () => {
-                // On done: re-show picker and buttons
-                chatArea.remove();
-                grid.style.display = '';
-                confirmBtn.style.display = '';
-                addOwnBtn.style.display = '';
-            });
-            div.appendChild(chatArea);
-        });
-
         div.appendChild(grid);
-        div.appendChild(addOwnBtn);
         div.appendChild(confirmBtn);
         container.appendChild(div);
     }
-}
-
-// ═══ Mini-chat for "Add my own" during onboarding ═══
-function buildAddOwnChat(comp, step, onDone) {
-    const categoryHint = step === 2 ? 'warm-up exercise' : step === 3 ? 'mobility exercise' : step === 4 ? 'recovery tool' : 'supplement';
-    const wrap = document.createElement('div');
-    wrap.className = 'add-own-chat';
-
-    const msgs = document.createElement('div');
-    msgs.className = 'add-chat-messages';
-    const intro = document.createElement('div');
-    intro.className = 'add-chat-msg assistant';
-    intro.textContent = `Tell me what ${categoryHint} you'd like to add — I'll check if it fits and add it to your plan!`;
-    msgs.appendChild(intro);
-    wrap.appendChild(msgs);
-
-    const inputRow = document.createElement('div');
-    inputRow.className = 'add-chat-input-row';
-    const chatInput = document.createElement('input');
-    chatInput.className = 'add-chat-input';
-    chatInput.type = 'text';
-    chatInput.placeholder = `e.g. "ice bath", "turmeric"...`;
-    const chatSend = document.createElement('button');
-    chatSend.className = 'add-chat-send';
-    chatSend.textContent = 'Send';
-    chatSend.disabled = true;
-    inputRow.appendChild(chatInput);
-    inputRow.appendChild(chatSend);
-    wrap.appendChild(inputRow);
-
-    const doneBtn = document.createElement('button');
-    doneBtn.className = 'add-chat-done';
-    doneBtn.textContent = '✓ Done — back to setup';
-    doneBtn.style.display = 'none';
-    wrap.appendChild(doneBtn);
-
-    let addChatHistory = [];
-    let addSending = false;
-
-    chatInput.addEventListener('input', () => { chatSend.disabled = chatInput.value.trim().length === 0; });
-    chatInput.addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); doAddSend(); } });
-    chatSend.addEventListener('click', doAddSend);
-    doneBtn.addEventListener('click', onDone);
-
-    async function doAddSend() {
-        const text = chatInput.value.trim();
-        if (!text || addSending) return;
-        addSending = true;
-        chatInput.value = ''; chatSend.disabled = true;
-
-        // Show user message
-        const userEl = document.createElement('div');
-        userEl.className = 'add-chat-msg user';
-        userEl.textContent = text;
-        msgs.appendChild(userEl);
-
-        // Show typing
-        const typingEl = document.createElement('div');
-        typingEl.className = 'add-chat-msg assistant';
-        typingEl.innerHTML = '<div class="ai-typing"><span></span><span></span><span></span></div>';
-        msgs.appendChild(typingEl);
-        msgs.scrollTop = msgs.scrollHeight;
-
-        addChatHistory.push({ role: 'user', content: text });
-
-        try {
-            const resp = await fetch('/api/ai/chat', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ message: text, history: addChatHistory, add_mode: true })
-            });
-            const data = await resp.json();
-            typingEl.remove();
-
-            if (data.success && data.response) {
-                const aiEl = document.createElement('div');
-                aiEl.className = 'add-chat-msg assistant';
-                aiEl.innerHTML = formatResponse(data.response);
-                msgs.appendChild(aiEl);
-                addChatHistory.push({ role: 'assistant', content: data.response });
-                doneBtn.style.display = '';
-            } else {
-                const errEl = document.createElement('div');
-                errEl.className = 'add-chat-msg assistant';
-                errEl.textContent = 'Something went wrong. Try again!';
-                msgs.appendChild(errEl);
-            }
-        } catch (err) {
-            typingEl.remove();
-            const errEl = document.createElement('div');
-            errEl.className = 'add-chat-msg assistant';
-            errEl.textContent = 'Connection error. Try again!';
-            msgs.appendChild(errEl);
-        }
-
-        msgs.scrollTop = msgs.scrollHeight;
-        addSending = false;
-    }
-
-    setTimeout(() => chatInput.focus(), 100);
-    return wrap;
 }
 
 function updateOnboardingBar(step) {
