@@ -2615,6 +2615,42 @@ a.cal-day:active {
   color: var(--tx);
 }
 
+/* --- START TRAINING Button --- */
+.ai-start-training-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  width: 100%;
+  padding: 16px 24px;
+  margin: 6px 0 12px;
+  background: linear-gradient(135deg, #34c759, #30d158);
+  color: white;
+  font-size: 18px;
+  font-weight: 800;
+  letter-spacing: 1.5px;
+  text-decoration: none;
+  border: none;
+  border-radius: 14px;
+  cursor: pointer;
+  box-shadow: 0 4px 14px rgba(52, 199, 89, 0.4);
+  transition: all 0.2s ease;
+  animation: aiFadeIn 0.7s ease, aiPulseGlow 2s ease-in-out infinite;
+}
+.ai-start-training-btn:hover {
+  background: linear-gradient(135deg, #2db84e, #28c74e);
+  transform: translateY(-1px);
+  box-shadow: 0 6px 20px rgba(52, 199, 89, 0.55);
+}
+.ai-start-training-btn:active {
+  transform: translateY(0);
+  box-shadow: 0 2px 8px rgba(52, 199, 89, 0.3);
+}
+@keyframes aiPulseGlow {
+  0%, 100% { box-shadow: 0 4px 14px rgba(52, 199, 89, 0.4); }
+  50% { box-shadow: 0 4px 24px rgba(52, 199, 89, 0.65); }
+}
+
 /* --- Welcome text reveal --- */
 .ai-welcome-text {
   animation: aiFadeIn 0.4s ease;
