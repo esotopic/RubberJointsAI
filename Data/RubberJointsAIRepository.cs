@@ -1723,28 +1723,49 @@ namespace RubberJointsAI.Data
                 count = (int)await cmd.ExecuteScalarAsync();
             }
 
-            // Auto-seed defaults for existing users who don't have UserSupplements yet
+            // Auto-seed defaults ONLY for legacy users who never went through onboarding.
+            // Users who completed onboarding (step 7) with empty SelectedSupplements explicitly chose none.
             if (count == 0)
             {
-                string startDate = date;
-                var enrollment = await GetActiveEnrollmentAsync(userId);
-                if (enrollment != null) startDate = enrollment.StartDate;
-
-                var defaultIds = new[] {
-                    "supp-collagen", "supp-omega3", "supp-vitamind", "supp-creatine",
-                    "supp-curcumin", "supp-omega3b", "supp-mag"
-                };
-                foreach (var suppId in defaultIds)
+                // Check if user completed onboarding — if so, respect their choice (no auto-seed)
+                bool skipAutoSeed = false;
+                using (var prefCmd = connection.CreateCommand())
                 {
-                    using var seedCmd = connection.CreateCommand();
-                    seedCmd.CommandText = @"
-                        IF EXISTS (SELECT 1 FROM Supplements WHERE Id = @suppId)
-                            INSERT INTO UserSupplements (UserId, SupplementId, TimeGroup, AddedDate)
-                            SELECT @userId, @suppId, TimeGroup, @addedDate FROM Supplements WHERE Id = @suppId";
-                    seedCmd.Parameters.AddWithValue("@userId", userId);
-                    seedCmd.Parameters.AddWithValue("@suppId", suppId);
-                    seedCmd.Parameters.AddWithValue("@addedDate", startDate);
-                    await seedCmd.ExecuteNonQueryAsync();
+                    prefCmd.CommandText = "SELECT OnboardingStep, SelectedSupplements FROM UserPreferences WHERE UserId = @userId";
+                    prefCmd.Parameters.AddWithValue("@userId", userId);
+                    using var prefReader = await prefCmd.ExecuteReaderAsync();
+                    if (await prefReader.ReadAsync())
+                    {
+                        int step = prefReader.GetInt32(0);
+                        string selSupps = prefReader.IsDBNull(1) ? "" : prefReader.GetString(1);
+                        // If onboarding is complete and supplements are empty, user chose none
+                        if (step >= 7 && string.IsNullOrWhiteSpace(selSupps))
+                            skipAutoSeed = true;
+                    }
+                }
+
+                if (!skipAutoSeed)
+                {
+                    string startDate = date;
+                    var enrollment = await GetActiveEnrollmentAsync(userId);
+                    if (enrollment != null) startDate = enrollment.StartDate;
+
+                    var defaultIds = new[] {
+                        "supp-collagen", "supp-omega3", "supp-vitamind", "supp-creatine",
+                        "supp-curcumin", "supp-omega3b", "supp-mag"
+                    };
+                    foreach (var suppId in defaultIds)
+                    {
+                        using var seedCmd = connection.CreateCommand();
+                        seedCmd.CommandText = @"
+                            IF EXISTS (SELECT 1 FROM Supplements WHERE Id = @suppId)
+                                INSERT INTO UserSupplements (UserId, SupplementId, TimeGroup, AddedDate)
+                                SELECT @userId, @suppId, TimeGroup, @addedDate FROM Supplements WHERE Id = @suppId";
+                        seedCmd.Parameters.AddWithValue("@userId", userId);
+                        seedCmd.Parameters.AddWithValue("@suppId", suppId);
+                        seedCmd.Parameters.AddWithValue("@addedDate", startDate);
+                        await seedCmd.ExecuteNonQueryAsync();
+                    }
                 }
             }
 
