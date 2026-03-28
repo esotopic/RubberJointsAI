@@ -1104,7 +1104,7 @@ RULES:
                                 break;
                             }
                             // Generate ID from name
-                            string ceId = System.Text.RegularExpressions.Regex.Replace(ceName.ToLower().Trim(), @"[^a-z0-9]+", "-").Trim('-');
+                            string ceId = string.Join("-", ceName.ToLower().Trim().Split(new[] { ' ', '/', '\\', '(', ')', ',', '.', '!', '?', '&', '+', '—', '–' }, StringSplitOptions.RemoveEmptyEntries));
                             // Check if it already exists in catalog
                             var existingEx = allExercises2.FirstOrDefault(e => e.Id == ceId || e.Name.Equals(ceName, StringComparison.OrdinalIgnoreCase));
                             if (existingEx != null)
@@ -1140,7 +1140,7 @@ RULES:
                             var validTgs = new HashSet<string> { "am", "mid", "pm" };
                             if (!validTgs.Contains(csTg)) csTg = "am";
                             // Generate ID from name
-                            string csId = System.Text.RegularExpressions.Regex.Replace(csName.ToLower().Trim(), @"[^a-z0-9]+", "-").Trim('-');
+                            string csId = string.Join("-", csName.ToLower().Trim().Split(new[] { ' ', '/', '\\', '(', ')', ',', '.', '!', '?', '&', '+', '—', '–' }, StringSplitOptions.RemoveEmptyEntries));
                             // Check if it already exists
                             var existingSupp = supplements2.FirstOrDefault(s => s.Id == csId || s.Name.Equals(csName, StringComparison.OrdinalIgnoreCase));
                             if (existingSupp != null)
