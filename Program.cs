@@ -532,7 +532,7 @@ app.MapPost("/api/ai/chat", async (HttpContext context, RubberJointsAIRepository
                         prefs.HasGym = selectionData.GetProperty("has_gym").GetBoolean();
                         prefs.OnboardingStep = 1;
                         break;
-                    case 1: // days/schedule selection OR quick start
+                    case 1: // days/schedule selection — gym users always generate directly, home users can customize
                         // Parse gym days if provided (gym users select specific days)
                         int selectedDayCount = 4; // default
                         string daysSummary = "4 days/week";
@@ -548,11 +548,13 @@ app.MapPost("/api/ai/chat", async (HttpContext context, RubberJointsAIRepository
                             selectedDayCount = dpw.GetInt32();
                         }
 
-                        // Check if user wants to skip directly to planning
-                        if (selectionData.TryGetProperty("quick_start", out var qs) && qs.GetBoolean())
+                        // Gym users: ALWAYS generate plan directly (gym has everything)
+                        // Home users: quick_start generates directly, otherwise go to customization
+                        bool isQuickStart = selectionData.TryGetProperty("quick_start", out var qs) && qs.GetBoolean();
+                        if (prefs.HasGym || isQuickStart)
                         {
                             var autoExercises = await repository.GetAllExercisesAsync();
-                            // Filter for home-appropriate exercises if no gym
+                            // Gym users get ALL exercises; home users get home-appropriate only
                             var autoIds = prefs.HasGym
                                 ? autoExercises.Select(e => e.Id).ToList()
                                 : autoExercises.Where(e => RubberJointsAI.Data.RubberJointsAIRepository.IsHomeAppropriate(e.Id)).Select(e => e.Id).ToList();
@@ -563,58 +565,41 @@ app.MapPost("/api/ai/chat", async (HttpContext context, RubberJointsAIRepository
                             await repository.SaveUserPreferencesAsync(prefs);
                             await repository.GenerateCustomPlanAsync(userId, prefs);
                             var qsPrompt = prefs.HasGym
-                                ? $"You are the AI Coach for a hilariously serious joint & mobility workout program — because your joints called and they want better treatment. The user '{userId}' just did a quick setup! Their 4-week plan has been auto-generated: {selectedDayCount} days/week ({daysSummary}), gym access. Each session has 3 sections: a quick warm-up (bike, rowing, elliptical, etc.), 10-20 min of targeted mobility work (rotated daily so it stays fresh!), and recovery cool-down (sauna, cold plunge, compression boots, etc.). The exercises rotate each day so no two sessions are identical. Celebrate! Keep it to 2-3 sentences. Make a funny joint/mobility joke. Tell them to tap START TRAINING to begin. Mention they can remove or add exercises from the Workout tab, and the AI adapts future sessions based on what they complete."
-                                : $"You are the AI Coach for a hilariously serious joint & mobility workout program — because your joints called and they want better treatment. The user '{userId}' just did a quick setup! Their HOME-ONLY 4-week plan has been auto-generated: {selectedDayCount} days/week, no gym needed! Each session has 3 sections: a quick warm-up (brisk walking, arm circles, leg swings), 10-20 min of targeted mobility (rotated daily — CARs, hip switches, cat-cow, wall slides, deep squats, etc.), and a recovery cool-down (foam roller, yoga flow, epsom bath, etc.). The exercises rotate each day so it stays interesting! Celebrate! Keep it to 2-3 sentences. Make a funny joint/mobility joke. Tell them to tap START TRAINING to begin. Mention they can remove or add exercises from the Workout tab, and the AI adapts future sessions based on what they complete.";
+                                ? $"You are the AI Coach for a hilariously serious joint & mobility workout program — because your joints called and they want better treatment. The user '{userId}' just completed setup! Their 4-week plan has been auto-generated: {selectedDayCount} days/week ({daysSummary}), gym access. On gym days they get the full experience: warm-up on machines (bike, rowing, elliptical), targeted mobility work (dead hangs, TRX squats, cable face pulls), and premium recovery tools (sauna, cold plunge, compression boots). On off days they get lighter home sessions to maintain progress. The exercises rotate each day so no two sessions are identical! Celebrate! Keep it to 2-3 sentences. Make a funny joint/mobility joke. Tell them to tap START TRAINING to begin. Mention they can remove exercises they don't like from the Workout tab."
+                                : $"You are the AI Coach for a hilariously serious joint & mobility workout program — because your joints called and they want better treatment. The user '{userId}' just did a quick setup! Their HOME-ONLY 4-week plan has been auto-generated: {selectedDayCount} days/week, no gym needed! Each session has 3 sections: a quick warm-up (brisk walking, arm circles, leg swings), 10-20 min of targeted mobility (rotated daily — CARs, hip switches, cat-cow, wall slides, deep squats, etc.), and a recovery cool-down (foam roller, yoga flow, epsom bath, etc.). The exercises rotate each day so it stays interesting! Celebrate! Keep it to 2-3 sentences. Make a funny joint/mobility joke. Tell them to tap START TRAINING to begin. Mention they can remove exercises they don't have from the Workout tab.";
                             var qsText = await CallClaudeAsync(httpFactory, apiKey, qsPrompt, "Quick start!", history);
                             return Results.Json(new { success = true, response = qsText, onboarding_step = 7, onboarding_complete = true });
                         }
 
-                        // Normal customize path
+                        // Home user customize path: go to step 2 (deselect picker)
                         prefs.DaysPerWeek = selectedDayCount;
                         prefs.OnboardingStep = 2;
                         break;
-                    case 2: // warmup exercises
-                        var warmupIds = new List<string>();
-                        foreach (var id in selectionData.GetProperty("exercise_ids").EnumerateArray())
-                            warmupIds.Add(id.GetString() ?? "");
-                        prefs.SelectedExercises = string.Join(",", warmupIds);
-                        prefs.OnboardingStep = 3;
-                        break;
-                    case 3: // mobility exercises
-                        var existingExIds = prefs.SelectedExercises.Split(',', StringSplitOptions.RemoveEmptyEntries).ToList();
-                        foreach (var id in selectionData.GetProperty("exercise_ids").EnumerateArray())
+                    case 2: // Home customization: user deselects exercises they DON'T have
+                    {
+                        // Get excluded_ids (exercises user deselected)
+                        var excludedIds = new HashSet<string>();
+                        if (selectionData.TryGetProperty("excluded_ids", out var exclEl))
                         {
-                            var eid = id.GetString() ?? "";
-                            if (!existingExIds.Contains(eid)) existingExIds.Add(eid);
+                            foreach (var id in exclEl.EnumerateArray())
+                                excludedIds.Add(id.GetString() ?? "");
                         }
-                        prefs.SelectedExercises = string.Join(",", existingExIds);
-                        prefs.OnboardingStep = 4;
-                        break;
-                    case 4: // recovery exercises
-                        var exIds2 = prefs.SelectedExercises.Split(',', StringSplitOptions.RemoveEmptyEntries).ToList();
-                        foreach (var id in selectionData.GetProperty("exercise_ids").EnumerateArray())
-                        {
-                            var eid = id.GetString() ?? "";
-                            if (!exIds2.Contains(eid)) exIds2.Add(eid);
-                        }
-                        prefs.SelectedExercises = string.Join(",", exIds2);
-                        prefs.OnboardingStep = 5;
-                        break;
-                    case 5: // supplements
-                        var suppIds = new List<string>();
-                        foreach (var id in selectionData.GetProperty("supplement_ids").EnumerateArray())
-                            suppIds.Add(id.GetString() ?? "");
-                        prefs.SelectedSupplements = string.Join(",", suppIds);
-                        prefs.OnboardingStep = 6;
-                        break;
-                    case 6: // confirm + generate plan
+                        // Start with ALL home-appropriate exercises, remove excluded ones
+                        var allEx = await repository.GetAllExercisesAsync();
+                        var selectedIds = allEx
+                            .Where(e => RubberJointsAI.Data.RubberJointsAIRepository.IsHomeAppropriate(e.Id))
+                            .Where(e => !excludedIds.Contains(e.Id))
+                            .Select(e => e.Id).ToList();
+                        prefs.SelectedExercises = string.Join(",", selectedIds);
+                        prefs.SelectedSupplements = "";
                         prefs.OnboardingStep = 7;
                         await repository.SaveUserPreferencesAsync(prefs);
                         await repository.GenerateCustomPlanAsync(userId, prefs);
-                        // Return completion response
-                        var completionPrompt = $"You are the AI Coach for a hilariously serious joint & mobility workout program — because your joints called and they want better treatment. The user '{userId}' just completed onboarding. Their plan has been generated: {prefs.DaysPerWeek} days/week, {(prefs.HasGym ? "gym access" : "home only")}, {prefs.SelectedExercises.Split(',').Length} exercises, {prefs.SelectedSupplements.Split(',').Length} supplements. Celebrate! Keep it to 2-3 sentences. Make a funny joint/mobility joke. Tell them to tap START TRAINING to begin.";
-                        var completionText = await CallClaudeAsync(httpFactory, apiKey, completionPrompt, "The plan is ready!", history);
-                        return Results.Json(new { success = true, response = completionText, onboarding_step = 7, onboarding_complete = true });
+                        int exCount = selectedIds.Count;
+                        var custPrompt = $"You are the AI Coach for a hilariously serious joint & mobility workout program. The user '{userId}' just customized their HOME-ONLY plan! They kept {exCount} exercises (removed {excludedIds.Count} they don't have). Their 4-week plan has been generated: {prefs.DaysPerWeek} days/week, each session has warm-up, mobility, and recovery sections that rotate daily. Week 1 starts gentle to build the habit, then gradually increases. Celebrate! Keep it to 2-3 sentences. Make a funny joint/mobility joke. Tell them to tap START TRAINING to begin.";
+                        var custText = await CallClaudeAsync(httpFactory, apiKey, custPrompt, "Plan customized!", history);
+                        return Results.Json(new { success = true, response = custText, onboarding_step = 7, onboarding_complete = true });
+                    }
                 }
                 await repository.SaveUserPreferencesAsync(prefs);
             }
@@ -629,11 +614,7 @@ app.MapPost("/api/ai/chat", async (HttpContext context, RubberJointsAIRepository
                 1 => prefs.HasGym
                     ? "User has gym access. Now ask which days of the week they go to the gym — the app will show clickable day buttons below. Keep it to 2 sentences. Make a joint joke."
                     : "User works out at home (no gym). The app will show options to generate a plan right away or customize exercises. Keep it to 2 sentences. Say something encouraging about home workouts being great for joints.",
-                2 => $"User trains {prefs.DaysPerWeek} days/week with {(prefs.HasGym ? "gym access" : "home only")}. Introduce warm-up exercises. Say something fun about warming up. The app will show exercise cards below — just introduce the step in 2 sentences.",
-                3 => "Now introduce mobility exercises. These are the CORE of the program. Get them excited about improving their range of motion. 2-3 sentences, be fun.",
-                4 => $"Now introduce recovery tools{(prefs.HasGym ? " (they have gym access so they may have saunas, compression boots etc)" : " (home-based recovery)")}. Quick and fun, 2 sentences.",
-                5 => "Now introduce supplements. These support joint health and recovery. Keep it light — 2 sentences.",
-                6 => "Summarize their selections and tell them you're about to generate their custom plan. Build excitement! 2 sentences.",
+                2 => $"User trains {prefs.DaysPerWeek} days/week at home (no gym). All home exercises are shown below — already enabled by default. The user just needs to deselect any they DON'T have access to or don't want. Say something like 'everything is turned on — just tap to remove anything that doesn't fit your setup'. 2 sentences, be encouraging.",
                 _ => "Onboarding complete."
             };
 
@@ -666,7 +647,7 @@ RULES:
                 case 1:
                     if (prefs.HasGym)
                     {
-                        // Gym users: pick specific days they go to the gym
+                        // Gym users: pick specific days they go to the gym, then generate directly
                         uiComponent = new { type = "gym_days_picker", id = "gym_days", days = new[] {
                             new { id = "Mon", label = "M" },
                             new { id = "Tue", label = "T" },
@@ -679,64 +660,20 @@ RULES:
                     }
                     else
                     {
-                        // Home users: generate plan now or customize
+                        // Home users: generate plan now or customize (deselect what you don't have)
                         uiComponent = new { type = "plan_or_customize", id = "home_choice" };
                     }
                     break;
-                case 2: // warmup exercises
-                    uiComponent = new { type = "exercise_picker", id = "warmup", category = "Warm-Up",
-                        exercises = allExercises.Where(e => e.Category == "warmup_tool").Select(e => new {
-                            id = e.Id, name = e.Name, description = e.Targets, rx = e.DefaultRx ?? ""
-                        })
-                    };
+                case 2: // Home customization: deselect picker — all exercises shown, all enabled by default
+                {
+                    // Only show home-appropriate exercises, grouped by category
+                    var homeExercises = allExercises
+                        .Where(e => RubberJointsAI.Data.RubberJointsAIRepository.IsHomeAppropriate(e.Id))
+                        .Select(e => new { id = e.Id, name = e.Name, category = e.Category, description = e.Targets, rx = e.DefaultRx ?? "" })
+                        .ToList();
+                    uiComponent = new { type = "exercise_deselect_picker", id = "home_customize", exercises = homeExercises };
                     break;
-                case 3: // mobility exercises
-                    uiComponent = new { type = "exercise_picker", id = "mobility", category = "Mobility",
-                        exercises = allExercises.Where(e => e.Category == "mobility").Select(e => new {
-                            id = e.Id, name = e.Name, description = e.Targets, rx = e.DefaultRx ?? ""
-                        })
-                    };
-                    break;
-                case 4: // recovery tools
-                    uiComponent = new { type = "exercise_picker", id = "recovery", category = "Recovery",
-                        exercises = allExercises.Where(e => e.Category == "recovery_tool").Select(e => new {
-                            id = e.Id, name = e.Name, description = e.Targets, rx = e.DefaultRx ?? "",
-                            category_label = "🧊 Recovery"
-                        })
-                    };
-                    break;
-                case 5: // supplements
-                    var allSupps = new List<object>();
-                    using (var conn = new Microsoft.Data.SqlClient.SqlConnection(builder.Configuration.GetConnectionString("DefaultConnection") ?? ""))
-                    {
-                        await conn.OpenAsync();
-                        using var cmd = conn.CreateCommand();
-                        cmd.CommandText = "SELECT Id, Name, Dose, Time, TimeGroup FROM Supplements ORDER BY CASE TimeGroup WHEN 'am' THEN 0 WHEN 'mid' THEN 1 WHEN 'pm' THEN 2 END, Name";
-                        using var reader = await cmd.ExecuteReaderAsync();
-                        while (await reader.ReadAsync())
-                        {
-                            allSupps.Add(new {
-                                id = reader.GetString(0), name = reader.GetString(1),
-                                dose = reader.IsDBNull(2) ? "" : reader.GetString(2),
-                                time = reader.IsDBNull(3) ? "" : reader.GetString(3),
-                                timeGroup = reader.IsDBNull(4) ? "am" : reader.GetString(4)
-                            });
-                        }
-                    }
-                    uiComponent = new { type = "supplement_picker", id = "supplements", supplements = allSupps };
-                    break;
-                case 6: // confirmation
-                    var selectedExNames = allExercises
-                        .Where(e => (prefs.SelectedExercises ?? "").Split(',').Contains(e.Id))
-                        .Select(e => e.Name).ToList();
-                    uiComponent = new { type = "confirmation", id = "confirm",
-                        summary = new {
-                            gym = prefs.HasGym, days = prefs.DaysPerWeek,
-                            exercises = selectedExNames.Count,
-                            exercise_names = selectedExNames
-                        }
-                    };
-                    break;
+                }
             }
 
             return Results.Json(new { success = true, response = aiResponse, onboarding_step = step, ui_component = uiComponent });
