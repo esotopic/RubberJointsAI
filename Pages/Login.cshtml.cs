@@ -67,7 +67,7 @@ namespace RubberJointsAI.Pages
                         ExpiresUtc = DateTimeOffset.UtcNow.AddDays(30)
                     });
 
-                return LocalRedirect(returnUrl ?? "/");
+                return LocalRedirect(returnUrl ?? "/AI");
             }
             catch (Exception)
             {

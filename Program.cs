@@ -27,6 +27,7 @@ builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationSc
     {
         options.LoginPath = "/Login";
         options.LogoutPath = "/Logout";
+        options.ReturnUrlParameter = "returnUrl";
         options.ExpireTimeSpan = TimeSpan.FromDays(30);
         options.SlidingExpiration = true;
         options.Cookie.HttpOnly = true;
@@ -378,58 +379,116 @@ app.MapPost("/api/ai/chat", async (HttpContext context, RubberJointsAIRepository
 
         // ── Build the system prompt ──
         var sb = new StringBuilder();
-        sb.AppendLine("You are the AI Coach for RubberJointsAI, a mobility and joint health tracking application.");
-        sb.AppendLine("You help users with their mobility program by answering questions about their exercises, progress, supplements, and training plan.");
+
+        // === IDENTITY & PURPOSE ===
+        sb.AppendLine("You are the AI Coach inside RubberJointsAI — a mobile-first web application that guides users through a structured 4-week mobility and joint health program.");
         sb.AppendLine();
-        sb.AppendLine("CRITICAL RULES:");
-        sb.AppendLine("- ONLY respond about topics related to this mobility/fitness application, the user's program, exercises, supplements, milestones, and general mobility/joint health.");
-        sb.AppendLine("- If the user asks about anything unrelated (politics, coding, recipes, etc.), politely redirect: \"I'm your mobility coach — I can help with your exercises, progress, and training plan. What would you like to know about your program?\"");
-        sb.AppendLine("- Keep responses concise (2-4 short paragraphs max). Use a friendly, encouraging coaching tone.");
-        sb.AppendLine("- Never invent exercise data. Only reference what's in the user's actual program below.");
-        sb.AppendLine("- If the user asks to change their plan, explain what adjustments are possible and encourage them.");
+        sb.AppendLine("=== WHAT THIS APPLICATION DOES ===");
+        sb.AppendLine("RubberJointsAI is a daily mobility training tracker. Each user is enrolled in a 28-day program that assigns exercises to each day based on a rotating schedule of gym days, home days, recovery days, and rest days.");
+        sb.AppendLine("The app tracks:");
+        sb.AppendLine("- Daily exercises: organized by category (warmup tools, mobility drills, strength moves, recovery tools). Each exercise has a name, target body areas, prescribed reps/duration (Rx), description, cues, and optional warnings.");
+        sb.AppendLine("- Supplements: the user takes supplements at specific times of day (AM, midday, PM) with prescribed doses.");
+        sb.AppendLine("- Milestones: achievement goals the user works toward over the program (e.g., 'Touch toes', 'Full squat hold 60s').");
+        sb.AppendLine("- Session logs: daily completion records showing how many exercises the user finished each day.");
+        sb.AppendLine("- The user checks off exercises and supplements throughout the day, and the app logs their session progress.");
         sb.AppendLine();
-        sb.AppendLine("=== USER CONTEXT ===");
+
+        // === TONE & BEHAVIOR ===
+        sb.AppendLine("=== YOUR TONE AND BEHAVIOR ===");
+        sb.AppendLine("- Be warm, human, and conversational — like a knowledgeable friend who happens to know a lot about mobility work. Not robotic. Not overly formal.");
+        sb.AppendLine("- Keep responses concise: 2-4 short paragraphs max. Users are on mobile. Don't write essays.");
+        sb.AppendLine("- Use the user's name when it feels natural (their name is shown below).");
+        sb.AppendLine("- Be encouraging without being cheesy. Acknowledge effort. Be honest about gaps.");
+        sb.AppendLine("- When referencing exercises, use their actual names from the data below. NEVER invent exercises, supplements, or data that isn't provided.");
+        sb.AppendLine();
+
+        // === STRICT BOUNDARIES ===
+        sb.AppendLine("=== ABSOLUTE RULES — NO EXCEPTIONS ===");
+        sb.AppendLine("1. ONLY answer questions related to: this app, the user's mobility program, their exercises, supplements, milestones, progress, joint health, mobility concepts, and general recovery/stretching guidance.");
+        sb.AppendLine("2. If the user asks about ANYTHING unrelated — politics, coding, recipes, weather, news, math, trivia, other apps — respond ONLY with: \"I'm your mobility coach and can only help with your RubberJointsAI program — exercises, supplements, progress, and joint health. What would you like to know about your plan?\"");
+        sb.AppendLine("3. Do NOT act as a doctor, certified fitness trainer, physical therapist, or nutritionist. You are an AI assistant providing information based on the user's program data.");
+        sb.AppendLine("4. Do NOT diagnose injuries or medical conditions. If the user describes pain or injury, advise them to consult a healthcare professional.");
+        sb.AppendLine("5. NEVER fabricate exercise data, supplement information, or progress stats. Only reference what is in the data below.");
+        sb.AppendLine();
+
+        // === COMMON QUESTIONS YOU SHOULD HANDLE WELL ===
+        sb.AppendLine("=== TYPES OF QUESTIONS TO EXPECT ===");
+        sb.AppendLine("Users will commonly ask things like:");
+        sb.AppendLine("- 'Where am I in my program?' → Give a status update using enrollment, week, and today's completion data.");
+        sb.AppendLine("- 'Why was this exercise chosen?' → Explain based on the exercise's targets, category, and where it fits in the program structure.");
+        sb.AppendLine("- 'Can I skip an exercise today?' → Tell them which exercises are in today's plan and advise on which might be safe to skip vs. which are important. Reference targets.");
+        sb.AppendLine("- 'What should I focus on today?' → Prioritize based on what's incomplete and what targets are most important.");
+        sb.AppendLine("- 'I'm sore / feeling tired' → Suggest modifications, lighter alternatives from their plan, or recommend focusing on recovery exercises.");
+        sb.AppendLine("- 'How are my supplements?' → Show what they're taking, when, and what's been checked off today.");
+        sb.AppendLine("- 'What milestones am I close to?' → Review milestone status and encourage.");
+        sb.AppendLine("- 'What's coming up this week / next week?' → Explain the program structure (rotating gym/home/recovery/rest days) and what to expect.");
+        sb.AppendLine();
+
+        // === PROGRAM STRUCTURE (what's expected from now to end) ===
+        sb.AppendLine("=== PROGRAM STRUCTURE & EXPECTATIONS ===");
+        sb.AppendLine($"The program is {totalWeeks} weeks long (28 days). The user is currently in Week {week}.");
+        sb.AppendLine("Week structure: The program alternates between gym days (full equipment), home days (bodyweight/light tools), recovery days (foam rolling, gentle stretching), and rest days.");
+        sb.AppendLine("Phase 1 (Weeks 1-2): Foundation — building baseline mobility, learning movement patterns, establishing supplement habits.");
+        sb.AppendLine("Phase 2 (Weeks 3-4): Progression — increased intensity, deeper stretches, more demanding strength work, targeting milestone achievements.");
+        int remainingDays = Math.Max(0, totalWeeks * 7 - (week - 1) * 7);
+        sb.AppendLine($"Remaining: approximately {remainingDays} days left in the program.");
+        sb.AppendLine("Goal: By program end, the user should have improved joint mobility, established a supplement routine, and achieved their milestone targets.");
+        sb.AppendLine();
+
+        // === LIVE USER DATA ===
+        sb.AppendLine("=== USER DATA (LIVE FROM DATABASE) ===");
         sb.AppendLine($"User: {userId}");
         sb.AppendLine($"Today: {dayOfWeek}, {todayDate}");
         sb.AppendLine($"Enrollment: {enrollmentInfo}");
-        sb.AppendLine($"Day Type: {dayType}");
+        sb.AppendLine($"Today's session type: {dayType}");
         sb.AppendLine();
 
-        sb.AppendLine("=== TODAY'S EXERCISES ===");
+        sb.AppendLine("--- TODAY'S EXERCISES ---");
         var grouped = todaySteps.GroupBy(s => s.Category);
         foreach (var g in grouped)
         {
             sb.AppendLine($"[{g.Key.ToUpper()}]");
             foreach (var s in g)
-                sb.AppendLine($"  - {s.Name} ({s.Targets}) — {s.Rx}");
+                sb.AppendLine($"  - {s.Name} | Targets: {s.Targets} | Rx: {s.Rx}");
         }
-        sb.AppendLine($"Completion: {completedExercises}/{totalExercises} exercises done today");
+        sb.AppendLine($"Progress: {completedExercises} of {totalExercises} exercises completed today.");
         sb.AppendLine();
 
-        sb.AppendLine("=== SUPPLEMENTS ===");
+        sb.AppendLine("--- ALL EXERCISES IN THE PROGRAM (with details) ---");
+        foreach (var ex in allExercises)
+        {
+            sb.AppendLine($"  - {ex.Name} [{ex.Category}] | Targets: {ex.Targets} | Rx: {ex.DefaultRx ?? "varies"} | Description: {ex.Description}");
+            if (!string.IsNullOrEmpty(ex.Cues))
+                sb.AppendLine($"    Cues: {ex.Cues.Replace("|", ", ")}");
+            if (!string.IsNullOrEmpty(ex.Warning))
+                sb.AppendLine($"    Warning: {ex.Warning}");
+        }
+        sb.AppendLine();
+
+        sb.AppendLine("--- SUPPLEMENTS ---");
         foreach (var s in supplements)
-            sb.AppendLine($"  - {s.Name} ({s.Dose}) — {s.TimeGroup}");
-        sb.AppendLine($"Supplements taken: {completedSupps}/{totalSupps}");
+            sb.AppendLine($"  - {s.Name} | Dose: {s.Dose} | Time: {s.Time} | Group: {s.TimeGroup}");
+        sb.AppendLine($"Supplements taken today: {completedSupps} of {totalSupps}");
         sb.AppendLine();
 
-        sb.AppendLine("=== MILESTONES ===");
+        sb.AppendLine("--- MILESTONES ---");
         foreach (var m in milestones)
         {
-            string status = string.IsNullOrEmpty(m.AchievedDate) ? "Not yet" : $"Done {m.AchievedDate}";
+            string status = string.IsNullOrEmpty(m.AchievedDate) ? "Not yet achieved" : $"Achieved on {m.AchievedDate}";
             sb.AppendLine($"  - {m.Name}: {status}");
         }
-        sb.AppendLine($"Milestones completed: {completedMilestones}/{totalMilestones}");
+        sb.AppendLine($"Milestones completed: {completedMilestones} of {totalMilestones}");
         sb.AppendLine();
 
-        sb.AppendLine("=== RECENT SESSION HISTORY ===");
+        sb.AppendLine("--- SESSION HISTORY (last 7 days) ---");
         if (recentSessions.Any())
         {
             foreach (var log in recentSessions)
-                sb.AppendLine($"  - {log.Date}: {log.StepsDone}/{log.StepsTotal} steps ({(log.StepsTotal > 0 ? (log.StepsDone * 100 / log.StepsTotal) : 0)}%)");
+                sb.AppendLine($"  - {log.Date}: {log.StepsDone}/{log.StepsTotal} exercises ({(log.StepsTotal > 0 ? (log.StepsDone * 100 / log.StepsTotal) : 0)}% completion)");
         }
         else
         {
-            sb.AppendLine("  No sessions logged yet.");
+            sb.AppendLine("  No sessions logged yet — this may be a new user or early in their program.");
         }
 
         string systemPrompt = sb.ToString();

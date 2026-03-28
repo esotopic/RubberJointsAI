@@ -2308,12 +2308,15 @@ a.cal-day:active {
   color: var(--tx2);
 }
 
-/* --- Suggestion chips --- */
+/* --- Suggestion chips (pinned above input, always visible) --- */
 .ai-suggestions {
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
-  padding: 0 12px 8px 48px;
+  padding: 6px 12px 4px;
+  flex-shrink: 0;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
 }
 
 .ai-chip {
@@ -2406,6 +2409,11 @@ a.cal-day:active {
   font-size: 10px;
   color: var(--tx3);
   margin-top: 6px;
+  line-height: 1.4;
+  padding: 4px 8px;
+  background: rgba(255, 149, 0, 0.06);
+  border-radius: 8px;
+  border: 1px solid rgba(255, 149, 0, 0.12);
 }
 
 /* --- Welcome text reveal --- */

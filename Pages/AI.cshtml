@@ -56,31 +56,31 @@
                 </div>
                 <div class="ai-bubble ai-bubble-assistant">
                     <p><strong>Hey @User.Identity?.Name!</strong> I'm your AI mobility coach.</p>
-                    <p>I have full visibility into your program, exercises, supplements, and progress. Pick an option below or type your own question.</p>
+                    <p>I can see your full program — exercises, supplements, milestones, and daily progress. Ask me anything about your plan or tap a quick option below to get started.</p>
                 </div>
             </div>
+        </div>
 
-            <!-- Quick action buttons (visible on load, trigger real AI) -->
-            <div class="ai-suggestions" id="aiSuggestions">
-                <button class="ai-chip" data-prompt="Give me a status update on where I am in my program — what week, what I've completed today, and how my overall progress looks.">
-                    My status update
-                </button>
-                <button class="ai-chip" data-prompt="What should I focus on in today's session? Any tips for getting the most out of my exercises?">
-                    Focus for today
-                </button>
-                <button class="ai-chip" data-prompt="How is my progress this week compared to what's expected? Am I on track?">
-                    Weekly progress
-                </button>
-                <button class="ai-chip" data-prompt="I'm feeling sore today. Can you suggest any adjustments to my plan or recovery tips?">
-                    I'm feeling sore
-                </button>
-                <button class="ai-chip" data-prompt="Tell me about my milestones — which ones have I hit and what should I aim for next?">
-                    My milestones
-                </button>
-                <button class="ai-chip" data-prompt="What supplements am I taking and when should I take them? Any tips?">
-                    Supplement guide
-                </button>
-            </div>
+        <!-- Quick action chips — always visible, pinned above input -->
+        <div class="ai-suggestions" id="aiSuggestions">
+            <button class="ai-chip" data-prompt="Give me a status update on where I am in my program — what week, what I've completed today, and how my overall progress looks.">
+                My status update
+            </button>
+            <button class="ai-chip" data-prompt="What should I focus on in today's session? Any tips for getting the most out of my exercises?">
+                Focus for today
+            </button>
+            <button class="ai-chip" data-prompt="How is my progress this week compared to what's expected? Am I on track?">
+                Weekly progress
+            </button>
+            <button class="ai-chip" data-prompt="I'm feeling sore today. Can you suggest any adjustments to my plan or recovery tips?">
+                I'm feeling sore
+            </button>
+            <button class="ai-chip" data-prompt="Tell me about my milestones — which ones have I hit and what should I aim for next?">
+                My milestones
+            </button>
+            <button class="ai-chip" data-prompt="What supplements am I taking and when should I take them? Any tips?">
+                Supplement guide
+            </button>
         </div>
 
         <!-- Input area -->
@@ -94,7 +94,12 @@
                     </svg>
                 </button>
             </div>
-            <div class="ai-disclaimer">AI responses are for guidance only. Consult a professional for medical advice.</div>
+            <div class="ai-disclaimer">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;margin-right:4px;opacity:0.7;">
+                    <circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line>
+                </svg>
+                This is an AI assistant, not a fitness trainer, doctor, or nutritionist. All suggestions are AI-generated and should not replace professional medical, fitness, or dietary advice. Always consult a qualified professional before making health decisions.
+            </div>
         </div>
     </div>
 </div>
@@ -138,8 +143,6 @@
         isSending = true;
 
         const messagesDiv = document.getElementById('aiMessages');
-        const suggestionsDiv = document.getElementById('aiSuggestions');
-        suggestionsDiv.style.display = 'none';
 
         // Add user bubble
         const userMsg = document.createElement('div');
@@ -225,10 +228,9 @@
     document.getElementById('newChatBtn').addEventListener('click', function() {
         const messagesDiv = document.getElementById('aiMessages');
         // Remove all messages except the first welcome message
-        while (messagesDiv.children.length > 2) {
+        while (messagesDiv.children.length > 1) {
             messagesDiv.removeChild(messagesDiv.lastChild);
         }
-        document.getElementById('aiSuggestions').style.display = 'flex';
         closeSidebar();
         addChatToList('New conversation');
     });
