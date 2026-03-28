@@ -436,7 +436,14 @@ namespace RubberJointsAI.Data
                 ("dry-sauna", "Dry Sauna", "recovery_tool", "Full Body", "Relax in dry sauna for muscle recovery", "10-20 min | Stay hydrated | Moderate temperature", "Reduces muscle soreness and promotes recovery", "Stay well hydrated", "1,2", "15 min"),
                 ("compex-warmup", "Compex — Warmup", "recovery_tool", "Quads,Glutes", "Use Compex muscle stimulator for warm-up", "Warmup setting | 10-15 min | Quads and glutes", "Prepares muscles for training", "Follow device instructions", "1,2", "10 min"),
                 ("compex-recovery", "Compex — Recovery", "recovery_tool", "Quads,Glutes,Calves", "Use Compex for post-workout recovery", "Recovery setting | 15-20 min | Multiple muscles", "Aids muscle recovery and reduces soreness", "Follow device instructions", "1,2", "15 min"),
-                ("compression-boots", "Compression Boots", "recovery_tool", "Legs", "Use compression boots for leg recovery", "15-30 min | Moderate compression | Legs only", "Improves circulation and reduces leg soreness", "Start with shorter durations", "1,2", "20 min")
+                ("compression-boots", "Compression Boots", "recovery_tool", "Legs", "Use compression boots for leg recovery", "15-30 min | Moderate compression | Legs only", "Improves circulation and reduces leg soreness", "Start with shorter durations", "1,2", "20 min"),
+                // Home-friendly recovery tools
+                ("foam-roller", "Foam Roller", "recovery_tool", "Full Body", "Roll out tight muscles for myofascial release", "Slow rolls | 30-60 sec per area | Pause on tender spots", "Breaks up adhesions and improves tissue quality", "Avoid rolling directly on joints or spine", "1,2", "10 min"),
+                ("lacrosse-ball", "Lacrosse Ball Release", "recovery_tool", "Shoulders,Hips,Feet", "Targeted deep tissue release with a lacrosse ball", "Pin and move | 30-60 sec per spot | Breathe through it", "Reaches deeper tissue than foam roller", "Avoid bony areas and nerves", "1,2", "8 min"),
+                ("contrast-shower", "Contrast Shower", "recovery_tool", "Full Body", "Alternate hot and cold water for circulation boost", "3 min hot | 1 min cold | Repeat 3x | End on cold", "Promotes blood flow and reduces inflammation", "Start gradually if new to cold exposure", "1,2", "12 min"),
+                ("yoga-cooldown", "Yoga Cool-Down Flow", "recovery_tool", "Full Body", "Gentle yoga sequence for recovery and relaxation", "Child's pose | Pigeon | Supine twist | Savasana | 5 breaths each", "Calms nervous system and promotes recovery", "Move gently; never force a stretch", "1,2", "15 min"),
+                ("self-massage", "Self-Massage (Hands/Stick)", "recovery_tool", "Calves,Forearms,Neck", "Manual massage using hands or a massage stick", "Slow strokes | Moderate pressure | 2-3 min per area", "Improves circulation and reduces muscle tension", "Avoid inflamed or injured areas", "1,2", "10 min"),
+                ("epsom-bath", "Epsom Salt Bath", "recovery_tool", "Full Body", "Soak in warm water with Epsom salts for recovery", "2 cups Epsom salt | Warm water | 15-20 min soak", "Magnesium absorption helps muscle relaxation", "Stay hydrated; avoid if you have low blood pressure", "1,2", "20 min")
             };
 
             using (var command = connection.CreateCommand())
@@ -2136,6 +2143,18 @@ namespace RubberJointsAI.Data
             }
         }
 
+        // Exercises that require gym equipment — excluded from home-only plans
+        private static readonly HashSet<string> GymOnlyExercises = new()
+        {
+            "hot-tub", "vibration-plate",                          // warmup tools (gym equipment)
+            "dead-hang",                                            // needs pull-up bar
+            "goblet-squat", "turkish-getup",                       // need weights
+            "hydro-massager", "steam-sauna", "dry-sauna",          // gym recovery
+            "compex-warmup", "compex-recovery", "compression-boots" // specialized recovery equipment
+        };
+
+        public static bool IsHomeAppropriate(string exerciseId) => !GymOnlyExercises.Contains(exerciseId);
+
         private string[] GetWeeklyPattern(bool hasGym, int daysPerWeek)
         {
             string g = hasGym ? "gym" : "home";
@@ -2158,8 +2177,8 @@ namespace RubberJointsAI.Data
 
             if (dayType == "rest")
             {
-                // Rest: minimal mobility only
-                foreach (var id in new[] { "cars-routine", "deep-squat-hold", "dead-hang" })
+                // Rest: minimal mobility only (home-safe picks)
+                foreach (var id in new[] { "cars-routine", "deep-squat-hold", "quadruped-rocking" })
                 {
                     if (selectedIds.Contains(id) && allExercises.ContainsKey(id))
                         result.Add((id, "mobility", allExercises[id].DefaultRx));
@@ -2169,11 +2188,24 @@ namespace RubberJointsAI.Data
 
             if (dayType == "recovery")
             {
-                // Recovery: only recovery_tool exercises
+                // Recovery: recovery_tool exercises, filtered for home if no gym
                 foreach (var id in selectedIds)
                 {
                     if (allExercises.TryGetValue(id, out var ex) && ex.Category == "recovery_tool")
+                    {
+                        // If no gym, skip gym-only recovery tools
+                        if (!hasGym && !IsHomeAppropriate(id)) continue;
                         result.Add((id, ex.Category, ex.DefaultRx));
+                    }
+                }
+                // For home recovery days, also add a light mobility routine
+                if (!hasGym)
+                {
+                    foreach (var id in new[] { "cars-routine", "open-book", "quadruped-rocking" })
+                    {
+                        if (selectedIds.Contains(id) && allExercises.ContainsKey(id) && !result.Any(r => r.exId == id))
+                            result.Add((id, "mobility", allExercises[id].DefaultRx));
+                    }
                 }
                 return result;
             }
@@ -2190,8 +2222,8 @@ namespace RubberJointsAI.Data
                 }
                 else if (dayType == "home")
                 {
-                    // Home: mobility + strength only (no warmup_tool or recovery_tool since those need equipment)
-                    if (ex.Category == "mobility" || ex.Category == "strength")
+                    // Home: mobility + strength only, but only home-appropriate ones
+                    if ((ex.Category == "mobility" || ex.Category == "strength") && IsHomeAppropriate(id))
                         result.Add((id, ex.Category, ex.DefaultRx));
                 }
             }

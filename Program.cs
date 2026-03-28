@@ -512,14 +512,19 @@ app.MapPost("/api/ai/chat", async (HttpContext context, RubberJointsAIRepository
                         if (selectionData.TryGetProperty("quick_start", out var qs) && qs.GetBoolean())
                         {
                             var autoExercises = await repository.GetAllExercisesAsync();
-                            var autoIds = autoExercises.Select(e => e.Id).ToList();
+                            // Filter for home-appropriate exercises if no gym
+                            var autoIds = prefs.HasGym
+                                ? autoExercises.Select(e => e.Id).ToList()
+                                : autoExercises.Where(e => RubberJointsAI.Data.RubberJointsAIRepository.IsHomeAppropriate(e.Id)).Select(e => e.Id).ToList();
                             prefs.SelectedExercises = string.Join(",", autoIds);
                             prefs.DaysPerWeek = selectedDayCount;
                             prefs.SelectedSupplements = "";
                             prefs.OnboardingStep = 7;
                             await repository.SaveUserPreferencesAsync(prefs);
                             await repository.GenerateCustomPlanAsync(userId, prefs);
-                            var qsPrompt = $"You are the AI Coach for a hilariously serious joint & mobility workout program — because your joints called and they want better treatment. The user '{userId}' just did a quick setup! Their plan has been auto-generated: {selectedDayCount} days/week ({daysSummary}), {(prefs.HasGym ? "gym access — we loaded up all the gym goodies" : "home only — everything you need, no gym required")}, all available exercises included. Celebrate! Keep it to 2-3 sentences. Make a funny joint/mobility joke. Tell them to tap START TRAINING to begin. Mention they can customize exercises and supplements anytime from the Workout tab or by chatting with you.";
+                            var qsPrompt = prefs.HasGym
+                                ? $"You are the AI Coach for a hilariously serious joint & mobility workout program — because your joints called and they want better treatment. The user '{userId}' just did a quick setup! Their plan has been auto-generated: {selectedDayCount} days/week ({daysSummary}), gym access — we loaded up all the gym goodies including warm-up tools, mobility work, strength exercises, and recovery equipment. Celebrate! Keep it to 2-3 sentences. Make a funny joint/mobility joke. Tell them to tap START TRAINING to begin. Mention they can customize exercises and supplements anytime from the Workout tab or by chatting with you."
+                                : $"You are the AI Coach for a hilariously serious joint & mobility workout program — because your joints called and they want better treatment. The user '{userId}' just did a quick setup! Their HOME-ONLY plan has been auto-generated: {selectedDayCount} days/week, no gym needed! The plan includes mobility work (CARs, hip switches, deep squats, stretches), bodyweight strength (cossack squats, jefferson curls), and home recovery tools (foam roller, lacrosse ball, yoga cool-down, contrast showers, epsom salt baths). Everything can be done in their living room. Celebrate! Keep it to 2-3 sentences. Make a funny joint/mobility joke. Tell them to tap START TRAINING to begin. Mention they can customize exercises and supplements anytime from the Workout tab or by chatting with you.";
                             var qsText = await CallClaudeAsync(httpFactory, apiKey, qsPrompt, "Quick start!", history);
                             return Results.Json(new { success = true, response = qsText, onboarding_step = 7, onboarding_complete = true });
                         }
