@@ -50,7 +50,17 @@ var app = builder.Build();
 if (!app.Environment.IsDevelopment())
 {
     app.UseExceptionHandler("/Error");
+    app.UseHsts();
 }
+
+app.UseHttpsRedirection();
+
+// Add security headers
+app.Use(async (context, next) =>
+{
+    context.Response.Headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains";
+    await next();
+});
 
 app.UseStaticFiles();
 app.UseRouting();
