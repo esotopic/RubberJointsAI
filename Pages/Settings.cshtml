@@ -5,26 +5,6 @@
     ViewData["Title"] = "Settings";
 }
 
-<style>
-    .settings-toggle-row { display:flex; align-items:center; justify-content:space-between; padding:10px 0; border-bottom:1px solid rgba(150,150,150,0.2); }
-    .settings-toggle-row:last-child { border-bottom:none; }
-    .toggle-info { flex:1; min-width:0; }
-    .toggle-name { font-size:14px; font-weight:600; color:var(--tx1, #1a1a2e); }
-    .toggle-desc { font-size:12px; color:var(--tx2, #666); margin-top:2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-    .toggle-rx { font-size:11px; color:var(--tx3, #999); margin-top:1px; }
-    .settings-toggle { position:relative; width:44px; height:26px; flex-shrink:0; margin-left:12px; }
-    .settings-toggle input { opacity:0; width:0; height:0; }
-    .settings-toggle .slider { position:absolute; cursor:pointer; inset:0; background:#ccc; border-radius:13px; transition:.2s; }
-    .settings-toggle .slider:before { content:''; position:absolute; height:20px; width:20px; left:3px; bottom:3px; background:#fff; border-radius:50%; transition:.2s; box-shadow:0 1px 3px rgba(0,0,0,0.2); }
-    .settings-toggle input:checked + .slider { background:var(--acc, #4a6cf7); }
-    .settings-toggle input:checked + .slider:before { transform:translateX(18px); }
-    .settings-toggle.saving .slider { opacity:0.5; }
-    .cat-header { display:flex; align-items:center; gap:8px; padding:12px 0 6px; }
-    .cat-header .cat-icon { font-size:18px; }
-    .cat-header .cat-title { font-size:15px; font-weight:700; color:var(--tx1, #1a1a2e); letter-spacing:0.02em; }
-    .cat-header .cat-count { font-size:12px; color:var(--tx2, #666); margin-left:auto; }
-</style>
-
 <div class="page-content">
     @if (!string.IsNullOrEmpty(Model.ErrorMessage))
     {
