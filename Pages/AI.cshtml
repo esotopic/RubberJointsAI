@@ -45,6 +45,46 @@
             <div style="width:36px;"></div>
         </div>
 
+        <!-- Program status banner (server-rendered, no AI call) -->
+        @{
+            string sessionLabel = Model.DayType switch {
+                "gym" => "Gym Session",
+                "home" => "Home Session",
+                "recovery" => "Recovery",
+                "rest" => "Rest Day",
+                _ => "Today"
+            };
+            int progressPct = Model.TotalWeeks > 0 ? (int)((Model.Week - 1) * 100.0 / Model.TotalWeeks) : 0;
+            if (progressPct > 100) progressPct = 100;
+        }
+        <div class="ai-status-banner">
+            <div class="ai-status-banner-top">
+                <div class="ai-status-banner-title">Week @Model.Week of @Model.TotalWeeks</div>
+                <div class="ai-status-banner-phase">@Model.Phase Phase</div>
+            </div>
+            <div class="ai-status-banner-bar">
+                <div class="ai-status-banner-fill" style="width:@(progressPct)%"></div>
+            </div>
+            <div class="ai-status-banner-grid">
+                <div class="ai-status-banner-stat">
+                    <span class="ai-stat-number">@Model.ExercisesDone/@Model.ExercisesTotal</span>
+                    <span class="ai-stat-label">Exercises</span>
+                </div>
+                <div class="ai-status-banner-stat">
+                    <span class="ai-stat-number">@Model.SupplementsDone/@Model.SupplementsTotal</span>
+                    <span class="ai-stat-label">Supplements</span>
+                </div>
+                <div class="ai-status-banner-stat">
+                    <span class="ai-stat-number">@Model.MilestonesDone/@Model.MilestonesTotal</span>
+                    <span class="ai-stat-label">Milestones</span>
+                </div>
+                <div class="ai-status-banner-stat">
+                    <span class="ai-stat-number">@sessionLabel</span>
+                    <span class="ai-stat-label">Today</span>
+                </div>
+            </div>
+        </div>
+
         <!-- Messages area -->
         <div class="ai-messages" id="aiMessages">
             <!-- Static welcome message (no AI call) -->
@@ -56,7 +96,7 @@
                 </div>
                 <div class="ai-bubble ai-bubble-assistant">
                     <p><strong>Hey @User.Identity?.Name!</strong> I'm your AI mobility coach.</p>
-                    <p>I can see your full program — exercises, supplements, milestones, and daily progress. Ask me anything about your plan or tap a quick option below to get started.</p>
+                    <p>Ask me anything about your plan or tap a quick option below.</p>
                 </div>
             </div>
         </div>

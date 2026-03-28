@@ -2185,6 +2185,78 @@ a.cal-day:active {
   letter-spacing: 0.5px;
 }
 
+/* --- Status Banner (server-rendered, no AI call) --- */
+.ai-status-banner {
+  background: linear-gradient(135deg, #4a6cf7, #6c5ce7);
+  color: white;
+  padding: 14px 16px 12px;
+  flex-shrink: 0;
+}
+
+.ai-status-banner-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.ai-status-banner-title {
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: 0.3px;
+}
+
+.ai-status-banner-phase {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 1.2px;
+  opacity: 0.85;
+  background: rgba(255,255,255,0.18);
+  padding: 3px 10px;
+  border-radius: 12px;
+  font-weight: 600;
+}
+
+.ai-status-banner-bar {
+  height: 4px;
+  background: rgba(255,255,255,0.2);
+  border-radius: 2px;
+  margin-bottom: 12px;
+  overflow: hidden;
+}
+
+.ai-status-banner-fill {
+  height: 100%;
+  background: #34c759;
+  border-radius: 2px;
+  transition: width 0.5s ease;
+}
+
+.ai-status-banner-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 4px;
+  text-align: center;
+}
+
+.ai-status-banner-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.ai-stat-number {
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.ai-stat-label {
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  opacity: 0.7;
+}
+
 /* --- Messages --- */
 .ai-messages {
   flex: 1;
