@@ -379,6 +379,19 @@ namespace RubberJointsAI.Data
         public async Task InitializeAsync()
         {
             await EnsureTablesExistAsync();
+            await RunMigrationsAsync();
+        }
+
+        private async Task RunMigrationsAsync()
+        {
+            using var connection = new SqlConnection(_connectionString);
+            await connection.OpenAsync();
+            // Rename program from "RubberJointsAI" to "4-Week Joint & Mobility Program"
+            using var cmd = connection.CreateCommand();
+            cmd.CommandText = @"UPDATE Programs SET Name = '4-Week Joint & Mobility Program',
+                Description = 'A hilariously serious program to get your joints moving like they should.'
+                WHERE Name = 'RubberJointsAI'";
+            await cmd.ExecuteNonQueryAsync();
         }
 
         /// <summary>
@@ -634,7 +647,7 @@ namespace RubberJointsAI.Data
                 command.CommandText = @"
                     INSERT INTO Programs (Name, DurationDays, Description)
                     OUTPUT INSERTED.Id
-                    VALUES ('RubberJointsAI', 28, '4-week joint mobility program')";
+                    VALUES ('4-Week Joint & Mobility Program', 28, 'A hilariously serious program to get your joints moving like they should.')";
                 programId = (int)await command.ExecuteScalarAsync();
             }
 
