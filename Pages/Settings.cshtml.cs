@@ -66,7 +66,7 @@ namespace RubberJointsAI.Pages
             }
             catch (Exception ex)
             {
-                ErrorMessage = "Unable to connect to the database.";
+                ErrorMessage = $"Database error: {ex.Message}";
             }
         }
 
