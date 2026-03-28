@@ -2141,7 +2141,7 @@ namespace RubberJointsAI.Data
         private List<(string exId, string category, string? rx)> GetExercisesForDayTypeCustom(
             string dayType, HashSet<string> selectedIds, Dictionary<string, Exercise> allExercises, bool hasGym)
         {
-            var result = new List<(string, string, string?)>();
+            var result = new List<(string exId, string category, string? rx)>();
 
             if (dayType == "rest")
             {

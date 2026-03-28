@@ -54,7 +54,7 @@
     <div class="ai-main">
         @if (!Model.IsOnboarding)
         {
-            @{ int progressPct = Model.TotalWeeks > 0 ? (int)((Model.Week - 1) * 100.0 / Model.TotalWeeks) : 0; if (progressPct > 100) progressPct = 100; }
+            int progressPct = Model.TotalWeeks > 0 ? (int)((Model.Week - 1) * 100.0 / Model.TotalWeeks) : 0; if (progressPct > 100) progressPct = 100;
             <div class="ai-topbar-combined">
                 <button class="ai-menu-btn" id="openSidebar"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg></button>
                 <div class="ai-topbar-center">
