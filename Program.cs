@@ -1,5 +1,7 @@
 using Microsoft.AspNetCore.Authentication.Cookies;
 using System.Text.Json;
+using System.Text;
+using System.Net.Http.Headers;
 using RubberJointsAI.Data;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -30,6 +32,14 @@ builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationSc
         options.Cookie.HttpOnly = true;
         options.Cookie.SameSite = SameSiteMode.Lax;
     });
+
+// HttpClient for Anthropic API
+builder.Services.AddHttpClient("Anthropic", client =>
+{
+    client.BaseAddress = new Uri("https://api.anthropic.com/");
+    client.DefaultRequestHeaders.Add("anthropic-version", "2023-06-01");
+    client.Timeout = TimeSpan.FromSeconds(60);
+});
 
 var app = builder.Build();
 
@@ -292,6 +302,182 @@ app.MapPost("/api/logsession", async (HttpContext context, RubberJointsAIReposit
     }
     catch (Exception ex)
     {
+        return Results.Json(new { success = false, error = ex.Message }, statusCode: 500);
+    }
+});
+
+// ── AI Chat endpoint - calls Anthropic Claude API with full program context ──
+app.MapPost("/api/ai/chat", async (HttpContext context, RubberJointsAIRepository repository, IHttpClientFactory httpFactory, IConfiguration config) =>
+{
+    if (context.User.Identity?.IsAuthenticated != true)
+        return Results.Unauthorized();
+
+    string userId = context.User.Identity?.Name ?? "default";
+    string todayDate = DateTime.UtcNow.ToString("yyyy-MM-dd");
+    string dayOfWeek = DateTime.UtcNow.DayOfWeek.ToString();
+
+    try
+    {
+        // Parse user message
+        using var doc = await JsonDocument.ParseAsync(context.Request.Body);
+        var root = doc.RootElement;
+        string userMessage = root.GetProperty("message").GetString() ?? "";
+        if (string.IsNullOrWhiteSpace(userMessage))
+            return Results.Json(new { success = false, error = "Empty message" }, statusCode: 400);
+
+        // ── Gather full program context for the system prompt ──
+
+        // 1. Enrollment & week
+        var enrollment = await repository.GetActiveEnrollmentAsync(userId);
+        string enrollmentInfo = "No active enrollment.";
+        int week = 1;
+        int totalWeeks = 4;
+        if (enrollment != null)
+        {
+            var enrollStart = DateTime.Parse(enrollment.StartDate);
+            int daysSince = (DateTime.UtcNow.Date - enrollStart.Date).Days;
+            week = Math.Max(1, daysSince / 7 + 1);
+            enrollmentInfo = $"Program: {enrollment.ProgramName}, Started: {enrollment.StartDate}, Week {week} of {totalWeeks}";
+        }
+
+        // 2. Today's daily plan
+        var planEntries = await repository.GetUserDailyPlanAsync(userId, todayDate);
+        var allExercises = await repository.GetAllExercisesAsync();
+        var exerciseMap = allExercises.ToDictionary(e => e.Id, e => e);
+        var settings = await repository.GetUserSettingsAsync(userId);
+        var disabledIds = (settings?.DisabledTools ?? "").Split(',', StringSplitOptions.RemoveEmptyEntries).ToHashSet();
+
+        string dayType = planEntries.FirstOrDefault()?.DayType ?? "unknown";
+        var todaySteps = planEntries
+            .Where(p => !disabledIds.Contains(p.ExerciseId))
+            .Select(p => {
+                var ex = exerciseMap.GetValueOrDefault(p.ExerciseId);
+                return new { Name = ex?.Name ?? p.ExerciseId, Category = p.Category, Rx = p.Rx ?? ex?.DefaultRx ?? "", Targets = ex?.Targets ?? "" };
+            }).ToList();
+
+        // 3. Today's completion status
+        var dailyChecks = await repository.GetDailyChecksAsync(userId, todayDate);
+        var completedIds = dailyChecks.Where(c => c.Checked && c.ItemType == "step").Select(c => c.ItemId).ToHashSet();
+        int totalExercises = todaySteps.Count;
+        int completedExercises = todaySteps.Count(s => completedIds.Contains(exerciseMap.FirstOrDefault(e => e.Value.Name == s.Name).Key ?? ""));
+
+        // 4. Supplements status
+        var supplements = await repository.GetUserSupplementsForDateAsync(userId, todayDate);
+        var suppChecks = dailyChecks.Where(c => c.ItemType == "supplement").ToList();
+        int totalSupps = supplements.Count;
+        int completedSupps = suppChecks.Count(c => c.Checked);
+
+        // 5. Milestones
+        var milestones = await repository.GetUserMilestonesAsync(userId);
+        int totalMilestones = milestones.Count;
+        int completedMilestones = milestones.Count(m => !string.IsNullOrEmpty(m.CompletedDate));
+
+        // 6. Session history (last 7 days)
+        var sessionLogs = await repository.GetSessionLogsAsync(userId);
+        var recentSessions = sessionLogs.OrderByDescending(s => s.Date).Take(7).ToList();
+
+        // ── Build the system prompt ──
+        var sb = new StringBuilder();
+        sb.AppendLine("You are the AI Coach for RubberJointsAI, a mobility and joint health tracking application.");
+        sb.AppendLine("You help users with their mobility program by answering questions about their exercises, progress, supplements, and training plan.");
+        sb.AppendLine();
+        sb.AppendLine("CRITICAL RULES:");
+        sb.AppendLine("- ONLY respond about topics related to this mobility/fitness application, the user's program, exercises, supplements, milestones, and general mobility/joint health.");
+        sb.AppendLine("- If the user asks about anything unrelated (politics, coding, recipes, etc.), politely redirect: \"I'm your mobility coach — I can help with your exercises, progress, and training plan. What would you like to know about your program?\"");
+        sb.AppendLine("- Keep responses concise (2-4 short paragraphs max). Use a friendly, encouraging coaching tone.");
+        sb.AppendLine("- Never invent exercise data. Only reference what's in the user's actual program below.");
+        sb.AppendLine("- If the user asks to change their plan, explain what adjustments are possible and encourage them.");
+        sb.AppendLine();
+        sb.AppendLine("=== USER CONTEXT ===");
+        sb.AppendLine($"User: {userId}");
+        sb.AppendLine($"Today: {dayOfWeek}, {todayDate}");
+        sb.AppendLine($"Enrollment: {enrollmentInfo}");
+        sb.AppendLine($"Day Type: {dayType}");
+        sb.AppendLine();
+
+        sb.AppendLine("=== TODAY'S EXERCISES ===");
+        var grouped = todaySteps.GroupBy(s => s.Category);
+        foreach (var g in grouped)
+        {
+            sb.AppendLine($"[{g.Key.ToUpper()}]");
+            foreach (var s in g)
+                sb.AppendLine($"  - {s.Name} ({s.Targets}) — {s.Rx}");
+        }
+        sb.AppendLine($"Completion: {completedExercises}/{totalExercises} exercises done today");
+        sb.AppendLine();
+
+        sb.AppendLine("=== SUPPLEMENTS ===");
+        foreach (var s in supplements)
+            sb.AppendLine($"  - {s.Name} ({s.Dose}) — {s.TimeGroup}");
+        sb.AppendLine($"Supplements taken: {completedSupps}/{totalSupps}");
+        sb.AppendLine();
+
+        sb.AppendLine("=== MILESTONES ===");
+        foreach (var m in milestones)
+        {
+            string status = string.IsNullOrEmpty(m.CompletedDate) ? "Not yet" : $"Done {m.CompletedDate}";
+            sb.AppendLine($"  - {m.Name}: {status}");
+        }
+        sb.AppendLine($"Milestones completed: {completedMilestones}/{totalMilestones}");
+        sb.AppendLine();
+
+        sb.AppendLine("=== RECENT SESSION HISTORY ===");
+        if (recentSessions.Any())
+        {
+            foreach (var log in recentSessions)
+                sb.AppendLine($"  - {log.Date}: {log.CompletedSteps}/{log.TotalSteps} steps ({(log.TotalSteps > 0 ? (log.CompletedSteps * 100 / log.TotalSteps) : 0)}%)");
+        }
+        else
+        {
+            sb.AppendLine("  No sessions logged yet.");
+        }
+
+        string systemPrompt = sb.ToString();
+
+        // ── Call Anthropic Claude API ──
+        string apiKey = config["Anthropic:ApiKey"] ?? "";
+        if (string.IsNullOrEmpty(apiKey))
+            return Results.Json(new { success = false, error = "AI not configured" }, statusCode: 500);
+
+        var client = httpFactory.CreateClient("Anthropic");
+        client.DefaultRequestHeaders.Add("x-api-key", apiKey);
+
+        var requestBody = new
+        {
+            model = "claude-haiku-4-5-20251001",
+            max_tokens = 800,
+            system = systemPrompt,
+            messages = new[] { new { role = "user", content = userMessage } }
+        };
+
+        var jsonContent = new StringContent(
+            JsonSerializer.Serialize(requestBody),
+            Encoding.UTF8,
+            "application/json");
+
+        var response = await client.PostAsync("v1/messages", jsonContent);
+        var responseBody = await response.Content.ReadAsStringAsync();
+
+        if (!response.IsSuccessStatusCode)
+        {
+            app.Logger.LogError("Anthropic API error: {Status} {Body}", response.StatusCode, responseBody);
+            return Results.Json(new { success = false, error = $"AI error: {response.StatusCode}" }, statusCode: 500);
+        }
+
+        using var responseDoc = JsonDocument.Parse(responseBody);
+        var content = responseDoc.RootElement.GetProperty("content");
+        string aiText = "";
+        foreach (var block in content.EnumerateArray())
+        {
+            if (block.GetProperty("type").GetString() == "text")
+                aiText += block.GetProperty("text").GetString();
+        }
+
+        return Results.Json(new { success = true, response = aiText });
+    }
+    catch (Exception ex)
+    {
+        app.Logger.LogError(ex, "AI chat error");
         return Results.Json(new { success = false, error = ex.Message }, statusCode: 500);
     }
 });

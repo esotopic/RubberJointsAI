@@ -24,7 +24,6 @@
             New Chat
         </button>
         <div class="ai-chat-list" id="chatList">
-            <!-- Conversations will be added here -->
         </div>
     </div>
 
@@ -48,7 +47,7 @@
 
         <!-- Messages area -->
         <div class="ai-messages" id="aiMessages">
-            <!-- Welcome / status message from AI -->
+            <!-- Static welcome message (no AI call) -->
             <div class="ai-message ai-message-assistant">
                 <div class="ai-avatar">
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -56,28 +55,31 @@
                     </svg>
                 </div>
                 <div class="ai-bubble ai-bubble-assistant">
-                    <div class="ai-typing" id="aiTyping">
-                        <span></span><span></span><span></span>
-                    </div>
-                    <div class="ai-welcome-text" id="aiWelcome" style="display:none;">
-                        <p><strong>Welcome back, @User.Identity?.Name!</strong></p>
-                        <p>I'm your AI mobility coach. I can see your progress and help guide your training.</p>
-                        <p class="ai-status-card">
-                            <span class="ai-status-label">Program Status</span>
-                            <span class="ai-status-value">Week 1 of 4</span>
-                            <span class="ai-status-detail">Today is a <strong>Gym Session</strong> day</span>
-                        </p>
-                        <p>What would you like to know? You can ask me about your exercises, progress, or adjustments to your plan.</p>
-                    </div>
+                    <p><strong>Hey @User.Identity?.Name!</strong> I'm your AI mobility coach.</p>
+                    <p>I have full visibility into your program, exercises, supplements, and progress. Pick an option below or type your own question.</p>
                 </div>
             </div>
 
-            <!-- Quick suggestion chips -->
-            <div class="ai-suggestions" id="aiSuggestions" style="display:none;">
-                <button class="ai-chip" data-prompt="How am I progressing this week?">How am I progressing?</button>
-                <button class="ai-chip" data-prompt="What should I focus on today?">Focus for today</button>
-                <button class="ai-chip" data-prompt="Can you adjust my plan? I'm feeling sore.">I'm feeling sore</button>
-                <button class="ai-chip" data-prompt="Tell me about my milestones">My milestones</button>
+            <!-- Quick action buttons (visible on load, trigger real AI) -->
+            <div class="ai-suggestions" id="aiSuggestions">
+                <button class="ai-chip" data-prompt="Give me a status update on where I am in my program — what week, what I've completed today, and how my overall progress looks.">
+                    My status update
+                </button>
+                <button class="ai-chip" data-prompt="What should I focus on in today's session? Any tips for getting the most out of my exercises?">
+                    Focus for today
+                </button>
+                <button class="ai-chip" data-prompt="How is my progress this week compared to what's expected? Am I on track?">
+                    Weekly progress
+                </button>
+                <button class="ai-chip" data-prompt="I'm feeling sore today. Can you suggest any adjustments to my plan or recovery tips?">
+                    I'm feeling sore
+                </button>
+                <button class="ai-chip" data-prompt="Tell me about my milestones — which ones have I hit and what should I aim for next?">
+                    My milestones
+                </button>
+                <button class="ai-chip" data-prompt="What supplements am I taking and when should I take them? Any tips?">
+                    Supplement guide
+                </button>
             </div>
         </div>
 
@@ -117,13 +119,6 @@
     closeBtn.addEventListener('click', closeSidebar);
     overlay.addEventListener('click', closeSidebar);
 
-    // === Typing animation then reveal welcome ===
-    setTimeout(() => {
-        document.getElementById('aiTyping').style.display = 'none';
-        document.getElementById('aiWelcome').style.display = 'block';
-        document.getElementById('aiSuggestions').style.display = 'flex';
-    }, 1500);
-
     // === Auto-resize textarea ===
     const input = document.getElementById('aiInput');
     const sendBtn = document.getElementById('aiSendBtn');
@@ -134,16 +129,19 @@
         sendBtn.disabled = this.value.trim().length === 0;
     });
 
-    // === Send message (UI only, no AI backend yet) ===
-    function sendMessage() {
-        const text = input.value.trim();
-        if (!text) return;
+    // === Send message — calls real AI backend ===
+    let isSending = false;
 
-        // Add user message
+    async function sendMessage() {
+        const text = input.value.trim();
+        if (!text || isSending) return;
+        isSending = true;
+
         const messagesDiv = document.getElementById('aiMessages');
         const suggestionsDiv = document.getElementById('aiSuggestions');
         suggestionsDiv.style.display = 'none';
 
+        // Add user bubble
         const userMsg = document.createElement('div');
         userMsg.className = 'ai-message ai-message-user';
         userMsg.innerHTML = `<div class="ai-bubble ai-bubble-user">${escapeHtml(text)}</div>`;
@@ -154,7 +152,7 @@
         input.style.height = 'auto';
         sendBtn.disabled = true;
 
-        // Add AI "thinking" response
+        // Add AI thinking bubble
         const aiMsg = document.createElement('div');
         aiMsg.className = 'ai-message ai-message-assistant';
         aiMsg.innerHTML = `
@@ -167,18 +165,43 @@
                 <div class="ai-typing"><span></span><span></span><span></span></div>
             </div>`;
         messagesDiv.appendChild(aiMsg);
-
-        // Scroll to bottom
         messagesDiv.scrollTop = messagesDiv.scrollHeight;
 
-        // Simulate AI response placeholder (will be replaced with real AI later)
-        setTimeout(() => {
-            const typingDot = aiMsg.querySelector('.ai-typing');
-            if (typingDot) {
-                typingDot.outerHTML = '<p style="color:var(--tx3);font-style:italic;">AI integration coming soon. This is where the response will appear.</p>';
+        try {
+            const resp = await fetch('/api/ai/chat', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ message: text })
+            });
+
+            const data = await resp.json();
+            const bubble = aiMsg.querySelector('.ai-bubble-assistant');
+
+            if (data.success && data.response) {
+                // Format the AI response (convert markdown-like formatting)
+                bubble.innerHTML = formatResponse(data.response);
+            } else {
+                bubble.innerHTML = `<p style="color:var(--red);">Sorry, I couldn't process that. ${data.error || 'Please try again.'}</p>`;
             }
-            messagesDiv.scrollTop = messagesDiv.scrollHeight;
-        }, 2000);
+        } catch (err) {
+            const bubble = aiMsg.querySelector('.ai-bubble-assistant');
+            bubble.innerHTML = `<p style="color:var(--red);">Connection error. Please check your internet and try again.</p>`;
+        }
+
+        messagesDiv.scrollTop = messagesDiv.scrollHeight;
+        isSending = false;
+    }
+
+    // Format AI response text into HTML
+    function formatResponse(text) {
+        // Convert **bold** to <strong>
+        text = text.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+        // Convert line breaks to paragraphs
+        const paragraphs = text.split('\n\n').filter(p => p.trim());
+        if (paragraphs.length > 1) {
+            return paragraphs.map(p => `<p>${p.replace(/\n/g, '<br>')}</p>`).join('');
+        }
+        return `<p>${text.replace(/\n/g, '<br>')}</p>`;
     }
 
     sendBtn.addEventListener('click', sendMessage);
@@ -189,7 +212,7 @@
         }
     });
 
-    // === Quick suggestion chips ===
+    // === Quick suggestion chips — trigger real AI call ===
     document.querySelectorAll('.ai-chip').forEach(chip => {
         chip.addEventListener('click', function() {
             input.value = this.dataset.prompt;
@@ -198,31 +221,26 @@
         });
     });
 
-    // === New Chat button ===
+    // === New Chat ===
     document.getElementById('newChatBtn').addEventListener('click', function() {
         const messagesDiv = document.getElementById('aiMessages');
-        // Keep only the welcome message
+        // Remove all messages except the first welcome message
         while (messagesDiv.children.length > 2) {
             messagesDiv.removeChild(messagesDiv.lastChild);
         }
         document.getElementById('aiSuggestions').style.display = 'flex';
         closeSidebar();
-
-        // Add to chat list
         addChatToList('New conversation');
     });
 
-    // === Chat list management ===
+    // === Chat list ===
     let chatCount = 0;
     function addChatToList(title) {
         chatCount++;
         const chatList = document.getElementById('chatList');
         const item = document.createElement('div');
         item.className = 'ai-chat-item active';
-
-        // Deactivate other items
         chatList.querySelectorAll('.ai-chat-item').forEach(el => el.classList.remove('active'));
-
         const now = new Date();
         const time = now.toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'});
         item.innerHTML = `
@@ -230,9 +248,7 @@
             <div class="ai-chat-item-time">${time}</div>`;
         chatList.prepend(item);
     }
-
-    // Add initial chat entry
-    addChatToList('Program check-in');
+    addChatToList('New session');
 
     function escapeHtml(text) {
         const div = document.createElement('div');

@@ -23,6 +23,13 @@
     </main>
 
     <nav class="bottom-nav" data-nav="@ViewContext.HttpContext.Request.Path">
+        <a href="/AI" class="nav-item @(ViewContext.HttpContext.Request.Path == "/AI" ? "active" : "")" data-path="/AI">
+            <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M12 2L9 7l-5 1 3.5 3.5L7 17l5-2.5L17 17l-.5-5.5L20 8l-5-1z"></path>
+                <circle cx="12" cy="9" r="1" fill="currentColor" stroke="none"></circle>
+            </svg>
+            <span class="nav-label">AI</span>
+        </a>
         <a href="/" class="nav-item @(ViewContext.HttpContext.Request.Path == "/" ? "active" : "")" data-path="/">
             <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <circle cx="12" cy="12" r="1"></circle>
@@ -32,13 +39,6 @@
                 <path d="M4.22 19.78l4.24-4.24m5.08-5.08l4.24-4.24"></path>
             </svg>
             <span class="nav-label">Today</span>
-        </a>
-        <a href="/AI" class="nav-item @(ViewContext.HttpContext.Request.Path == "/AI" ? "active" : "")" data-path="/AI">
-            <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M12 2L9 7l-5 1 3.5 3.5L7 17l5-2.5L17 17l-.5-5.5L20 8l-5-1z"></path>
-                <circle cx="12" cy="9" r="1" fill="currentColor" stroke="none"></circle>
-            </svg>
-            <span class="nav-label">AI</span>
         </a>
         <a href="/Week" class="nav-item @(ViewContext.HttpContext.Request.Path == "/Week" ? "active" : "")" data-path="/Week">
             <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
