@@ -1257,11 +1257,17 @@ input[type='date']::-webkit-calendar-picker-indicator {
    YOUTUBE DEMO LINK
    ============================================================================ */
 
+.detail-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 10px;
+}
+
 .yt-demo-link {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  margin-top: 10px;
   padding: 6px 14px;
   background: #ff0000;
   color: #fff;
@@ -1270,6 +1276,31 @@ input[type='date']::-webkit-calendar-picker-indicator {
   font-weight: 700;
   text-decoration: none;
   transition: opacity 150ms ease;
+}
+
+.delete-exercise-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 14px;
+  background: transparent;
+  color: #999;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 150ms ease;
+}
+
+.delete-exercise-btn:hover {
+  color: #e53e3e;
+  border-color: #e53e3e;
+  background: #fff5f5;
+}
+
+.delete-exercise-btn svg {
+  stroke: currentColor;
 }
 
 .yt-demo-link:hover {

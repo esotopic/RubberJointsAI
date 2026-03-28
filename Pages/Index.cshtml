@@ -220,11 +220,20 @@
                     {
                         <p class="detail-warning">@step.Exercise.Warning</p>
                     }
-                    <a href="https://www.youtube.com/results?search_query=@(Uri.EscapeDataString(GetYouTubeQuery(step.Exercise)))"
-                       target="_blank" rel="noopener" class="yt-demo-link">
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M23.5 6.2a3 3 0 00-2.1-2.1C19.5 3.5 12 3.5 12 3.5s-7.5 0-9.4.6A3 3 0 00.5 6.2 31.9 31.9 0 000 12a31.9 31.9 0 00.5 5.8 3 3 0 002.1 2.1c1.9.6 9.4.6 9.4.6s7.5 0 9.4-.6a3 3 0 002.1-2.1A31.9 31.9 0 0024 12a31.9 31.9 0 00-.5-5.8zM9.5 15.6V8.4l6.3 3.6-6.3 3.6z"/></svg>
-                        Watch Demo
-                    </a>
+                    <div class="detail-actions">
+                        <a href="https://www.youtube.com/results?search_query=@(Uri.EscapeDataString(GetYouTubeQuery(step.Exercise)))"
+                           target="_blank" rel="noopener" class="yt-demo-link">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M23.5 6.2a3 3 0 00-2.1-2.1C19.5 3.5 12 3.5 12 3.5s-7.5 0-9.4.6A3 3 0 00.5 6.2 31.9 31.9 0 000 12a31.9 31.9 0 00.5 5.8 3 3 0 002.1 2.1c1.9.6 9.4.6 9.4.6s7.5 0 9.4-.6a3 3 0 002.1-2.1A31.9 31.9 0 0024 12a31.9 31.9 0 00-.5-5.8zM9.5 15.6V8.4l6.3 3.6-6.3 3.6z"/></svg>
+                            Watch Demo
+                        </a>
+                        @if (!isFuture)
+                        {
+                            <button class="delete-exercise-btn" data-exercise-id="@step.Exercise.Id" data-exercise-name="@step.Exercise.Name" title="Remove from plan">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2m3 0v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6h14zM10 11v6M14 11v6"/></svg>
+                                Remove
+                            </button>
+                        }
+                    </div>
                 </div>
             }
         </div>
@@ -559,6 +568,49 @@ async function addExercise(exercise) {
     } catch (error) {
         console.error('Network error adding exercise:', error);
     }
+}
+
+// ── Delete exercise from plan (today + future) ──
+async function deleteExercise(exerciseId, exerciseName, btnEl) {
+    if (!confirm(`Remove "${exerciseName}" from today and all future sessions?`)) return;
+
+    try {
+        const response = await fetch('/api/plan/remove', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ exerciseId })
+        });
+
+        const result = await response.json();
+        if (result.success) {
+            // Remove the exercise row + its detail panel from the DOM
+            const checkItem = document.querySelector(`.check-item[data-exercise-id="${exerciseId}"]`);
+            const detail = document.querySelector(`.detail[data-detail-for="${checkItem?.dataset.stepId}"]`);
+            const category = checkItem?.dataset.category;
+            if (detail) detail.remove();
+            if (checkItem) checkItem.remove();
+
+            // Update category counts and progress bars
+            if (category && categoryTotals[category]) {
+                categoryTotals[category].total -= 1;
+                updateProgressBars();
+            }
+        } else {
+            console.error('Failed to remove exercise:', result.error);
+        }
+    } catch (error) {
+        console.error('Network error removing exercise:', error);
+    }
+}
+
+// Wire up delete buttons
+if (!IS_FUTURE) {
+    document.querySelectorAll('.delete-exercise-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            deleteExercise(btn.dataset.exerciseId, btn.dataset.exerciseName, btn);
+        });
+    });
 }
 
 // Wire up exercise + buttons (exclude the supplement button)

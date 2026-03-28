@@ -1930,6 +1930,24 @@ namespace RubberJointsAI.Data
             return newId;
         }
 
+        /// <summary>
+        /// Removes an exercise from today and all future dates in the user's plan.
+        /// Returns the number of rows deleted.
+        /// </summary>
+        public async Task<int> RemoveExerciseFromFuturePlanAsync(string userId, string exerciseId, string today)
+        {
+            using var connection = new SqlConnection(_connectionString);
+            await connection.OpenAsync();
+            using var cmd = connection.CreateCommand();
+            cmd.CommandText = @"
+                DELETE FROM UserDailyPlan
+                WHERE UserId = @userId AND ExerciseId = @exerciseId AND Date >= @today";
+            cmd.Parameters.AddWithValue("@userId", userId);
+            cmd.Parameters.AddWithValue("@exerciseId", exerciseId);
+            cmd.Parameters.AddWithValue("@today", today);
+            return await cmd.ExecuteNonQueryAsync();
+        }
+
         // ── UserPreferences CRUD ──
 
         public async Task<UserPreferences?> GetUserPreferencesAsync(string userId)

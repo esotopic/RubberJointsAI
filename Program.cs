@@ -264,6 +264,36 @@ app.MapPost("/api/plan/add", async (HttpContext context, RubberJointsAIRepositor
     }
 });
 
+// ── Delete exercise from today and all future sessions ──
+app.MapPost("/api/plan/remove", async (HttpContext context, RubberJointsAIRepository repository) =>
+{
+    if (context.User.Identity?.IsAuthenticated != true)
+        return Results.Unauthorized();
+
+    try
+    {
+        string userId = context.User.Identity?.Name ?? "default";
+        using var doc = await System.Text.Json.JsonDocument.ParseAsync(context.Request.Body);
+        var root = doc.RootElement;
+
+        string exerciseId = root.GetProperty("exerciseId").GetString() ?? "";
+        if (string.IsNullOrEmpty(exerciseId))
+            return Results.Json(new { success = false, error = "Missing exerciseId" }, statusCode: 400);
+
+        // Get today's date in Pacific time
+        var pst = TimeZoneInfo.FindSystemTimeZoneById("America/Los_Angeles");
+        var pacificNow = TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, pst);
+        string today = pacificNow.ToString("yyyy-MM-dd");
+
+        int removed = await repository.RemoveExerciseFromFuturePlanAsync(userId, exerciseId, today);
+        return Results.Json(new { success = true, removed });
+    }
+    catch (Exception ex)
+    {
+        return Results.Json(new { success = false, error = ex.Message }, statusCode: 500);
+    }
+});
+
 // ── Get exercises by category (for picker) ──
 app.MapGet("/api/exercises", async (HttpContext context, RubberJointsAIRepository repository) =>
 {
