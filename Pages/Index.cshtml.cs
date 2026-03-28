@@ -61,11 +61,17 @@ namespace RubberJointsAI.Pages
                     week = Math.Max(1, daysSince / 7 + 1);
                 }
 
-                // Get plan for selected date
-                var planEntries = await _repository.GetUserDailyPlanAsync(userId, selectedDateStr);
+                // Run independent queries in parallel for speed
+                var planTask = _repository.GetUserDailyPlanAsync(userId, selectedDateStr);
+                var settingsTask = _repository.GetUserSettingsAsync(userId);
+                var exercisesTask = _repository.GetAllExercisesAsync();
+                var checksTask = _repository.GetDailyChecksAsync(userId, selectedDateStr);
+                var supplementsTask = _repository.GetUserSupplementsForDateAsync(userId, selectedDateStr);
 
-                // Get user settings for disabled tools
-                var settings = await _repository.GetUserSettingsAsync(userId);
+                await Task.WhenAll(planTask, settingsTask, exercisesTask, checksTask, supplementsTask);
+
+                var planEntries = await planTask;
+                var settings = await settingsTask;
                 var disabledToolIds = (settings?.DisabledTools ?? "").Split(',', System.StringSplitOptions.RemoveEmptyEntries).ToHashSet();
 
                 // Filter out disabled tools
@@ -76,12 +82,10 @@ namespace RubberJointsAI.Pages
 
                 (string sessionType, int estMinutes, string location) = GetSessionDetails(dayType);
 
-                // Get exercises
-                var allExercises = await _repository.GetAllExercisesAsync();
+                var allExercises = await exercisesTask;
                 var exerciseMap = allExercises.ToDictionary(e => e.Id);
 
-                // Get daily checks for selected date
-                var dailyChecks = await _repository.GetDailyChecksAsync(userId, selectedDateStr);
+                var dailyChecks = await checksTask;
                 var checkMap = dailyChecks.ToDictionary(c => $"{c.ItemType}:{c.ItemId}:{c.StepIndex}", c => c.Checked);
 
                 // Build steps from plan entries
@@ -106,8 +110,8 @@ namespace RubberJointsAI.Pages
                     }
                 }
 
-                // Get user's active supplements for this date
-                var userSupplements = await _repository.GetUserSupplementsForDateAsync(userId, selectedDateStr);
+                // Supplements already fetched in parallel above
+                var userSupplements = await supplementsTask;
                 var supplementChecks = new List<SupplementCheck>();
                 foreach (var supp in userSupplements)
                 {

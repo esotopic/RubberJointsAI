@@ -58,8 +58,19 @@ public class AIModel : PageModel
 
         try
         {
-            // Enrollment & week
-            var enrollment = await _repository.GetActiveEnrollmentAsync(userId);
+            // Run independent queries in parallel for speed
+            var enrollmentTask = _repository.GetActiveEnrollmentAsync(userId);
+            var planTask = _repository.GetUserDailyPlanAsync(userId, todayDate);
+            var settingsTask = _repository.GetUserSettingsAsync(userId);
+            var checksTask = _repository.GetDailyChecksAsync(userId, todayDate);
+            var exercisesTask = _repository.GetAllExercisesAsync();
+            var supplementsTask = _repository.GetUserSupplementsForDateAsync(userId, todayDate);
+            var milestonesTask = _repository.GetUserMilestonesAsync(userId);
+            var sessionsTask = _repository.GetSessionLogsAsync(userId);
+
+            await Task.WhenAll(enrollmentTask, planTask, settingsTask, checksTask, exercisesTask, supplementsTask, milestonesTask, sessionsTask);
+
+            var enrollment = await enrollmentTask;
             if (enrollment != null)
             {
                 ProgramName = enrollment.ProgramName ?? "Mobility Program";
@@ -72,24 +83,21 @@ public class AIModel : PageModel
                 Phase = Week <= 2 ? "Foundation" : "Progression";
             }
 
-            // Today's plan
-            var planEntries = await _repository.GetUserDailyPlanAsync(userId, todayDate);
-            var settings = await _repository.GetUserSettingsAsync(userId);
+            var planEntries = await planTask;
+            var settings = await settingsTask;
             var disabledIds = (settings?.DisabledTools ?? "").Split(',', StringSplitOptions.RemoveEmptyEntries).ToHashSet();
             planEntries = planEntries.Where(e => !disabledIds.Contains(e.ExerciseId)).ToList();
             DayType = planEntries.FirstOrDefault()?.DayType ?? "rest";
             ExercisesTotal = planEntries.Count;
 
-            // Completion
-            var dailyChecks = await _repository.GetDailyChecksAsync(userId, todayDate);
+            var dailyChecks = await checksTask;
             ExercisesDone = dailyChecks.Count(c => c.ItemType == "step" && c.Checked);
             var checkedExerciseIds = dailyChecks
                 .Where(c => c.ItemType == "step" && c.Checked)
                 .Select(c => c.ItemId)
                 .ToHashSet();
 
-            // Build today's exercise preview
-            var allExercises = await _repository.GetAllExercisesAsync();
+            var allExercises = await exercisesTask;
             var exerciseMap = allExercises.ToDictionary(e => e.Id, e => e);
             foreach (var entry in planEntries)
             {
@@ -106,12 +114,11 @@ public class AIModel : PageModel
                 }
             }
 
-            // Supplements
-            var supplements = await _repository.GetUserSupplementsForDateAsync(userId, todayDate);
+            // All fetched in parallel above
+            var supplements = await supplementsTask;
             SupplementsTotal = supplements.Count;
             SupplementsDone = dailyChecks.Count(c => c.ItemType == "supplement" && c.Checked);
 
-            // Upcoming supplements (not yet taken)
             var takenSupIds = dailyChecks
                 .Where(c => c.ItemType == "supplement" && c.Checked)
                 .Select(c => c.ItemId)
@@ -122,14 +129,12 @@ public class AIModel : PageModel
                 .Take(3)
                 .ToList();
 
-            // Milestones
-            var milestones = await _repository.GetUserMilestonesAsync(userId);
+            var milestones = await milestonesTask;
             MilestonesTotal = milestones.Count;
             MilestonesDone = milestones.Count(m => !string.IsNullOrEmpty(m.AchievedDate));
             NextMilestone = milestones.FirstOrDefault(m => string.IsNullOrEmpty(m.AchievedDate))?.Name;
 
-            // Session streak (count of completed session logs)
-            var sessions = await _repository.GetSessionLogsAsync(userId);
+            var sessions = await sessionsTask;
             CompletedSessions = sessions.Count(s => s.StepsDone > 0);
         }
         catch
