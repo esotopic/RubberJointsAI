@@ -189,8 +189,9 @@ namespace RubberJointsAI.Pages
         {
             return dayType switch
             {
-                "gym" => "Full Gym Session",
-                "home" => "Home Mobility + Recovery",
+                "train" => "Training Session",
+                "gym" => "Training Session",
+                "home" => "Training Session",
                 "recovery" => "Active Recovery",
                 "rest" => "Rest + Passive Recovery",
                 _ => ""
@@ -201,10 +202,11 @@ namespace RubberJointsAI.Pages
         {
             return dayType switch
             {
-                "gym" => 85,
-                "home" => 55,
-                "recovery" => 60,
-                "rest" => 40,
+                "train" => 45,
+                "gym" => 45,
+                "home" => 45,
+                "recovery" => 30,
+                "rest" => 20,
                 _ => 0
             };
         }

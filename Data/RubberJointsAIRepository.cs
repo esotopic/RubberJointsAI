@@ -2217,34 +2217,17 @@ namespace RubberJointsAI.Data
             }
         }
 
-        // Exercises that require gym equipment — excluded from home-only plans
-        private static readonly HashSet<string> GymOnlyExercises = new()
-        {
-            // Warm-up: gym machines
-            "hot-tub", "vibration-plate", "stationary-bike", "elliptical",
-            "rowing-machine", "incline-treadmill", "stair-climber",
-            // Mobility: gym equipment
-            "dead-hang", "trx-squat", "cable-face-pulls",
-            "bench-tspine-stretch", "banded-ankle-distraction", "smith-machine-stretch",
-            // Recovery: gym equipment
-            "hydro-massager", "steam-sauna", "dry-sauna", "cold-plunge",
-            "compex-warmup", "compex-recovery", "compression-boots"
-        };
-
-        public static bool IsHomeAppropriate(string exerciseId) => !GymOnlyExercises.Contains(exerciseId);
-
         private string[] GetWeeklyPattern(bool hasGym, int daysPerWeek)
         {
-            string g = hasGym ? "gym" : "home";
             return daysPerWeek switch
             {
-                2 => new[] { g, "rest", "rest", g, "rest", "recovery", "rest" },
-                3 => new[] { g, "rest", g, "rest", g, "recovery", "rest" },
-                4 => new[] { g, "home", "rest", g, "home", "recovery", "rest" },
-                5 => new[] { g, "home", g, "home", g, "recovery", "rest" },
-                6 => new[] { g, "home", g, "home", g, "home", "recovery" },
-                7 => new[] { g, "home", g, "home", g, "recovery", "rest" },
-                _ => new[] { g, "rest", g, "rest", g, "recovery", "rest" },
+                2 => new[] { "train", "rest", "rest", "train", "rest", "recovery", "rest" },
+                3 => new[] { "train", "rest", "train", "rest", "train", "recovery", "rest" },
+                4 => new[] { "train", "train", "rest", "train", "train", "recovery", "rest" },
+                5 => new[] { "train", "train", "train", "rest", "train", "train", "recovery" },
+                6 => new[] { "train", "train", "train", "train", "train", "train", "recovery" },
+                7 => new[] { "train", "train", "train", "train", "train", "recovery", "rest" },
+                _ => new[] { "train", "rest", "train", "rest", "train", "recovery", "rest" },
             };
         }
 
@@ -2264,10 +2247,9 @@ namespace RubberJointsAI.Data
             var result = new List<(string exId, string category, string? rx)>();
             int week = dayIndex / 7; // 0-3
 
-            // Helper: get available exercises for a category, respecting home filter
+            // Helper: get available exercises for a category from user's selected set
             List<string> AvailableFor(string category) =>
-                selectedIds.Where(id => allExercises.TryGetValue(id, out var ex) && ex.Category == category
-                    && (hasGym || IsHomeAppropriate(id))).ToList();
+                selectedIds.Where(id => allExercises.TryGetValue(id, out var ex) && ex.Category == category).ToList();
 
             // Helper: pick N items from a list, rotating by dayIndex for variety
             List<string> PickRotated(List<string> pool, int count, int offset)
@@ -2309,7 +2291,7 @@ namespace RubberJointsAI.Data
                 return result;
             }
 
-            // ── Training day (gym or home) — progressive loading by week ──
+            // ── Training day — progressive loading by week ──
             var warmups = AvailableFor("warmup_tool");
             var mobility = AvailableFor("mobility");
             var recovery = AvailableFor("recovery_tool");

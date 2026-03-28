@@ -199,10 +199,11 @@ namespace RubberJointsAI.Pages
         {
             return dayType switch
             {
-                "gym" => ("Gym Session", 60, "Gym"),
-                "home" => ("Home Session", 40, "Home"),
-                "recovery" => ("Recovery", 30, "Home"),
-                "rest" => ("Rest Day", 0, "Rest"),
+                "train" => ("Training", 45, ""),
+                "gym" => ("Training", 45, ""),
+                "home" => ("Training", 45, ""),
+                "recovery" => ("Recovery", 30, ""),
+                "rest" => ("Rest Day", 0, ""),
                 _ => ("Unknown", 0, "")
             };
         }

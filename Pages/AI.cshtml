@@ -268,74 +268,18 @@ async function sendMessage(text, selection) {
 
 // ═══ Render UI Components ═══
 function renderUIComponent(container, comp, step) {
-    if (comp.type === 'choice') {
-        const div = document.createElement('div');
-        div.className = 'ui-choices';
-        comp.options.forEach(opt => {
-            const card = document.createElement('div');
-            card.className = 'ui-choice-card';
-            card.innerHTML = `<span class="choice-label">${opt.label}</span>${opt.description ? `<span class="choice-desc">${opt.description}</span>` : ''}`;
-            card.addEventListener('click', () => {
-                div.querySelectorAll('.ui-choice-card').forEach(c => { c.style.pointerEvents='none'; c.style.opacity='0.5'; });
-                card.style.opacity='1'; card.style.borderColor='var(--acc)';
-                if (comp.id === 'gym_access') {
-                    sendMessage(opt.label, { step: 0, data: { has_gym: opt.value } });
-                }
-            });
-            div.appendChild(card);
-        });
-        container.appendChild(div);
-    }
-    else if (comp.type === 'gym_days_picker') {
-        // Gym users: clickable day-of-week toggles → generate plan directly
+    if (comp.type === 'welcome_start') {
+        // Welcome step: simple "Let's Go" button
         const div = document.createElement('div');
         div.style.cssText = 'text-align:center;padding:8px 0;';
-        const selectedDays = new Set();
-        const daysRow = document.createElement('div');
-        daysRow.style.cssText = 'display:flex;justify-content:center;gap:8px;flex-wrap:wrap;margin-bottom:14px;';
-        comp.days.forEach(day => {
-            const btn = document.createElement('button');
-            btn.textContent = day.label;
-            btn.style.cssText = 'width:44px;height:44px;border-radius:50%;border:2px solid var(--brd);background:var(--bg2);color:var(--tx1);font-size:14px;font-weight:600;cursor:pointer;transition:all 0.2s;';
-            btn.addEventListener('click', () => {
-                if (selectedDays.has(day.id)) {
-                    selectedDays.delete(day.id);
-                    btn.style.background = 'var(--bg2)';
-                    btn.style.borderColor = 'var(--brd)';
-                    btn.style.color = 'var(--tx1)';
-                } else {
-                    selectedDays.add(day.id);
-                    btn.style.background = 'var(--acc)';
-                    btn.style.borderColor = 'var(--acc)';
-                    btn.style.color = '#fff';
-                }
-                genBtn.disabled = selectedDays.size === 0;
-                genBtn.style.opacity = selectedDays.size > 0 ? '1' : '0.5';
-                countLabel.textContent = selectedDays.size > 0 ? `${selectedDays.size} day${selectedDays.size > 1 ? 's' : ''} selected` : 'Tap your gym days';
-            });
-            daysRow.appendChild(btn);
-        });
-        div.appendChild(daysRow);
-        const countLabel = document.createElement('div');
-        countLabel.textContent = 'Tap your gym days';
-        countLabel.style.cssText = 'font-size:12px;color:var(--tx3);margin-bottom:12px;';
-        div.appendChild(countLabel);
-
-        // Generate Plan button — gym users go straight to plan generation
-        const genBtn = document.createElement('button');
-        genBtn.textContent = '⚡ Generate My Plan';
-        genBtn.disabled = true;
-        genBtn.style.cssText = 'background:linear-gradient(135deg,#6366f1,#8b5cf6);color:#fff;border:none;border-radius:12px;padding:12px 20px;font-size:14px;font-weight:600;cursor:pointer;width:90%;max-width:320px;opacity:0.5;transition:opacity 0.2s;';
-        genBtn.addEventListener('click', () => {
+        const btn = document.createElement('button');
+        btn.textContent = '🚀 Let\'s Go!';
+        btn.style.cssText = 'background:linear-gradient(135deg,#6366f1,#8b5cf6);color:#fff;border:none;border-radius:12px;padding:14px 24px;font-size:15px;font-weight:600;cursor:pointer;width:90%;max-width:320px;';
+        btn.addEventListener('click', () => {
             div.style.pointerEvents='none'; div.style.opacity='0.6';
-            sendMessage(`⚡ Generate plan for ${[...selectedDays].join(', ')}`, { step: 1, data: { gym_days: [...selectedDays] } });
+            sendMessage('Let\'s go!', { step: 0, data: {} });
         });
-        div.appendChild(genBtn);
-        const genNote = document.createElement('div');
-        genNote.style.cssText = 'font-size:11px;color:var(--tx3);margin-top:5px;';
-        genNote.textContent = 'Full gym + home exercises · remove what you don\'t like anytime';
-        div.appendChild(genNote);
-
+        div.appendChild(btn);
         container.appendChild(div);
     }
     else if (comp.type === 'plan_or_customize') {
@@ -353,7 +297,7 @@ function renderUIComponent(container, comp, step) {
         div.appendChild(genBtn);
         const genNote = document.createElement('div');
         genNote.style.cssText = 'font-size:11px;color:var(--tx3);margin:5px 0 14px;';
-        genNote.textContent = '4 days/week · all home exercises · customize anytime';
+        genNote.textContent = '4 days/week · all exercises included · customize anytime';
         div.appendChild(genNote);
 
         const orDiv = document.createElement('div');
