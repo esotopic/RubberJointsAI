@@ -33,8 +33,15 @@ builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationSc
         options.ExpireTimeSpan = TimeSpan.FromDays(30);
         options.SlidingExpiration = true;
         options.Cookie.HttpOnly = true;
+        options.Cookie.SecurePolicy = CookieSecurePolicy.Always;
         options.Cookie.SameSite = SameSiteMode.Lax;
     });
+
+// Ensure antiforgery cookies are also Secure
+builder.Services.AddAntiforgery(options =>
+{
+    options.Cookie.SecurePolicy = CookieSecurePolicy.Always;
+});
 
 // HttpClient for Anthropic API
 builder.Services.AddHttpClient("Anthropic", client =>
@@ -55,10 +62,15 @@ if (!app.Environment.IsDevelopment())
 
 app.UseHttpsRedirection();
 
-// Add security headers
+// Add security headers (fixes Brave/Firefox "Not Secure" warnings)
 app.Use(async (context, next) =>
 {
-    context.Response.Headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains";
+    context.Response.Headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains; preload";
+    context.Response.Headers["X-Content-Type-Options"] = "nosniff";
+    context.Response.Headers["X-Frame-Options"] = "SAMEORIGIN";
+    context.Response.Headers["Referrer-Policy"] = "strict-origin-when-cross-origin";
+    context.Response.Headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()";
+    context.Response.Headers["Content-Security-Policy"] = "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; connect-src 'self'; font-src 'self'; frame-ancestors 'self'";
     await next();
 });
 
