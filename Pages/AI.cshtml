@@ -70,7 +70,7 @@
 
             <!-- Today's Quick Glance — compact 2-line summary -->
             <div class="ai-info-card ai-info-compact">
-                <div class="ai-info-nugget">💪 @Model.ExercisesDone/@Model.ExercisesTotal exercises · @Model.SupplementsDone/@Model.SupplementsTotal supplements</div>
+                <div class="ai-info-nugget" id="aiStatsLine">💪 Loading today's stats...</div>
                 <div class="ai-info-nugget">📊 Check <strong>Progress</strong> tab to track your journey</div>
             </div>
 
@@ -363,6 +363,20 @@
             }, 300);
         }
     })();
+
+    // === Load today's stats (exercise/supplement counts) in background ===
+    fetch('/api/ai-stats', { credentials: 'same-origin' })
+        .then(r => r.json())
+        .then(d => {
+            if (d.success) {
+                const el = document.getElementById('aiStatsLine');
+                if (el) el.textContent = '💪 ' + d.exercisesDone + '/' + d.exercisesTotal + ' exercises · ' + d.supplementsDone + '/' + d.supplementsTotal + ' supplements';
+            }
+        })
+        .catch(() => {
+            const el = document.getElementById('aiStatsLine');
+            if (el) el.textContent = '💪 Check Today tab for your progress';
+        });
 
     // === Prefetch Today page data in background to warm server cache ===
     fetch('/api/today-prefetch', { credentials: 'same-origin' }).catch(() => {});

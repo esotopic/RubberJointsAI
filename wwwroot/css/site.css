@@ -735,6 +735,38 @@ header {
   background-color: rgba(69, 196, 160, 0.2);
 }
 
+/* Expandable milestone detail */
+.ms-detail {
+  display: none;
+  background-color: var(--s2);
+  padding: 0 16px 12px 42px;
+  font-size: 13px;
+  color: var(--tx2);
+  line-height: 1.6;
+  border-bottom: 1px solid var(--brd);
+}
+.ms-detail.open {
+  display: block;
+}
+.ms-detail p {
+  margin: 0 0 8px;
+}
+.ms-detail .yt-demo-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: #c00;
+  font-size: 13px;
+  font-weight: 600;
+  text-decoration: none;
+}
+.ms-detail .yt-demo-link:hover {
+  text-decoration: underline;
+}
+.ms-content-tap {
+  cursor: pointer;
+}
+
 /* ============================================================================
    LIBRARY
    ============================================================================ */
@@ -1837,27 +1869,27 @@ a.cal-day:active {
   color: var(--acc);
 }
 
-.ask-ai-section-btn {
+/* Ask AI icon button — sits in the section header row */
+.ask-ai-header-btn {
   display: flex;
   align-items: center;
-  gap: 6px;
-  margin: 8px 16px 4px auto;
-  padding: 6px 14px;
-  font-size: 12px;
-  font-weight: 600;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  margin-left: 6px;
   color: #4a6cf7;
   background: #f0f4ff;
   border: 1px solid #dce3ff;
-  border-radius: 20px;
+  border-radius: 50%;
   text-decoration: none;
   transition: background 0.2s, color 0.2s;
-  width: fit-content;
+  flex-shrink: 0;
 }
-.ask-ai-section-btn:hover {
+.ask-ai-header-btn:hover {
   background: #dce3ff;
   color: #3451b2;
 }
-.ask-ai-section-btn svg {
+.ask-ai-header-btn svg {
   flex-shrink: 0;
 }
 

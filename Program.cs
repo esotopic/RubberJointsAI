@@ -94,6 +94,44 @@ app.MapRazorPages();
 
 // ── Minimal API endpoints (bypass Razor Pages routing for reliable JSON responses) ──
 
+// ── Lightweight stats for AI page (exercise/supplement counts only) ──
+app.MapGet("/api/ai-stats", async (HttpContext context, RubberJointsAIRepository repository) =>
+{
+    if (context.User.Identity?.IsAuthenticated != true)
+        return Results.Unauthorized();
+
+    string userId = context.User.Identity?.Name ?? "default";
+    var pst = TimeZoneInfo.FindSystemTimeZoneById("America/Los_Angeles");
+    var pacificNow = TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, pst);
+    string todayDate = pacificNow.ToString("yyyy-MM-dd");
+
+    try
+    {
+        var planTask = repository.GetUserDailyPlanAsync(userId, todayDate);
+        var checksTask = repository.GetDailyChecksAsync(userId, todayDate);
+        var supplementsTask = repository.GetUserSupplementsForDateAsync(userId, todayDate);
+
+        await Task.WhenAll(planTask, checksTask, supplementsTask);
+
+        var plan = await planTask;
+        var checks = await checksTask;
+        var supplements = await supplementsTask;
+
+        return Results.Json(new
+        {
+            success = true,
+            exercisesTotal = plan.Count,
+            exercisesDone = checks.Count(c => c.ItemType == "step" && c.Checked),
+            supplementsTotal = supplements.Count,
+            supplementsDone = checks.Count(c => c.ItemType == "supplement" && c.Checked)
+        });
+    }
+    catch
+    {
+        return Results.Json(new { success = false });
+    }
+});
+
 // ── Prefetch Today page data into memory cache (called from AI page in background) ──
 app.MapGet("/api/today-prefetch", async (HttpContext context, RubberJointsAIRepository repository, Microsoft.Extensions.Caching.Memory.IMemoryCache cache) =>
 {

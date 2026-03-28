@@ -48,8 +48,23 @@
         <!-- Milestones Card -->
         <div class="card" style="margin:0 16px 14px;">
             <div class="card-title" style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.07em;color:var(--tx3);margin-bottom:10px;">Milestones</div>
+            @{
+                var milestoneDescriptions = new Dictionary<string, string>
+                {
+                    ["kneel"] = "Kneel on a hard floor with no padding and hold comfortably for 30+ seconds. This tests knee and ankle mobility and shows your joints are adapting to load.",
+                    ["squat60"] = "Hold a deep squat (full depth, heels down) for 60 seconds. A fundamental mobility benchmark that shows hip, knee, and ankle flexibility.",
+                    ["squat120"] = "Hold a deep squat for 2 full minutes without support. This shows strong lower-body mobility and endurance in end-range positions.",
+                    ["hang30"] = "Hang from a pull-up bar with straight arms for 30 seconds. Builds shoulder health, grip strength, and spinal decompression.",
+                    ["hang60"] = "Dead hang for a full minute. Demonstrates excellent shoulder mobility and grip endurance — a key joint health marker.",
+                    ["shinbox"] = "From a shinbox (90-90) position, stand up without using your hands. Tests hip mobility, glute strength, and balance.",
+                    ["tgu-kb"] = "Complete a full Turkish get-up holding a kettlebell. This full-body movement tests shoulder stability, core strength, and coordinated mobility.",
+                    ["cossack-floor"] = "Perform a Cossack squat deep enough to touch the floor with your hand. Demands exceptional hip and ankle mobility with lateral movement.",
+                    ["floor-nohand"] = "Get up from the floor to standing without using your hands or knees. A classic functional mobility test used in longevity research."
+                };
+            }
             @foreach (var milestone in Model.ViewModel.Milestones)
             {
+                var msDesc = milestoneDescriptions.ContainsKey(milestone.Id) ? milestoneDescriptions[milestone.Id] : "A mobility milestone in your program.";
                 <div class="ms-item" data-milestone-id="@milestone.Id">
                     <div class="ms-dot @(milestone.Done ? "done" : "")" data-milestone-id="@milestone.Id">
                         @if (milestone.Done)
@@ -57,7 +72,7 @@
                             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
                         }
                     </div>
-                    <div class="ms-content">
+                    <div class="ms-content ms-content-tap">
                         <div class="ms-name">@milestone.Name</div>
                         <div class="ms-date">
                             @if (milestone.Done && !string.IsNullOrEmpty(milestone.AchievedDate))
@@ -74,6 +89,14 @@
                     {
                         <button class="ms-btn" data-milestone-id="@milestone.Id">Done</button>
                     }
+                </div>
+                <div class="ms-detail" data-ms-detail="@milestone.Id">
+                    <p>@msDesc</p>
+                    <a href="https://www.youtube.com/results?search_query=@(Uri.EscapeDataString(milestone.Name + " mobility exercise"))"
+                       target="_blank" rel="noopener" class="yt-demo-link">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M23.5 6.2a3 3 0 00-2.1-2.1C19.5 3.5 12 3.5 12 3.5s-7.5 0-9.4.6A3 3 0 00.5 6.2 31.9 31.9 0 000 12a31.9 31.9 0 00.5 5.8 3 3 0 002.1 2.1c1.9.6 9.4.6 9.4.6s7.5 0 9.4-.6a3 3 0 002.1-2.1A31.9 31.9 0 0024 12a31.9 31.9 0 00-.5-5.8zM9.5 15.6V8.4l6.3 3.6-6.3 3.6z"/></svg>
+                        Watch Demo
+                    </a>
                 </div>
             }
         </div>
@@ -111,6 +134,20 @@ document.querySelectorAll('.ms-btn').forEach(btn => {
             }
         } catch (error) {
             console.error('Error:', error);
+        }
+    });
+});
+
+// Tap milestone name to expand/collapse detail
+document.querySelectorAll('.ms-content-tap').forEach(content => {
+    content.style.cursor = 'pointer';
+    content.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const item = content.closest('.ms-item');
+        const msId = item.dataset.milestoneId;
+        const detail = document.querySelector(`.ms-detail[data-ms-detail="${msId}"]`);
+        if (detail) {
+            detail.classList.toggle('open');
         }
     });
 });
