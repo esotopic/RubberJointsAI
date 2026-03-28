@@ -41,10 +41,17 @@ public class AIModel : PageModel
     // Supplement reminder
     public List<string> UpcomingSupplements { get; set; } = new();
 
+    private static DateTime GetPacificNow()
+    {
+        var pst = TimeZoneInfo.FindSystemTimeZoneById("America/Los_Angeles");
+        return TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, pst);
+    }
+
     public async Task OnGetAsync()
     {
         string userId = User.Identity?.Name ?? "default";
-        string todayDate = DateTime.UtcNow.ToString("yyyy-MM-dd");
+        var pacificNow = GetPacificNow();
+        string todayDate = pacificNow.ToString("yyyy-MM-dd");
 
         // Pick a random joke
         JokeOfTheDay = GetRandomJoke();
@@ -58,7 +65,7 @@ public class AIModel : PageModel
                 ProgramName = enrollment.ProgramName ?? "Mobility Program";
                 if (DateTime.TryParse(enrollment.StartDate, out var enrollStart))
                 {
-                    int daysSince = (DateTime.UtcNow.Date - enrollStart.Date).Days;
+                    int daysSince = (pacificNow.Date - enrollStart.Date).Days;
                     Week = Math.Max(1, daysSince / 7 + 1);
                     DaysRemaining = Math.Max(0, 28 - daysSince);
                 }
@@ -163,7 +170,7 @@ public class AIModel : PageModel
         };
 
         // Use the day of year so the joke changes daily but stays consistent within a day
-        int index = DateTime.UtcNow.DayOfYear % jokes.Length;
+        int index = GetPacificNow().DayOfYear % jokes.Length;
         return jokes[index];
     }
 }
