@@ -826,7 +826,7 @@ namespace RubberJointsAI.Data
                                 Cues = reader.IsDBNull(5) ? null : reader.GetString(5),
                                 Explanation = reader.IsDBNull(6) ? null : reader.GetString(6),
                                 Warning = reader.IsDBNull(7) ? null : reader.GetString(7),
-                                Phases = reader.GetString(8),
+                                Phases = reader.IsDBNull(8) ? "1,2,3,4" : reader.GetString(8),
                                 DefaultRx = reader.IsDBNull(9) ? null : reader.GetString(9)
                             });
                         }
@@ -2481,8 +2481,8 @@ namespace RubberJointsAI.Data
                 using var cmd = connection.CreateCommand();
                 cmd.CommandText = @"
                     IF NOT EXISTS (SELECT 1 FROM Exercises WHERE Id = @id)
-                    INSERT INTO Exercises (Id, Name, Category, Targets, Description, DefaultRx)
-                    VALUES (@id, @name, @category, @targets, '', @rx)";
+                    INSERT INTO Exercises (Id, Name, Category, Targets, Description, DefaultRx, Phases)
+                    VALUES (@id, @name, @category, @targets, '', @rx, '1,2,3,4')";
                 cmd.Parameters.AddWithValue("@id", id);
                 cmd.Parameters.AddWithValue("@name", name);
                 cmd.Parameters.AddWithValue("@category", category);
