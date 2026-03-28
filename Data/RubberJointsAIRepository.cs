@@ -353,8 +353,14 @@ namespace RubberJointsAI.Data
                                 DaysPerWeek INT DEFAULT 3,
                                 OnboardingStep INT DEFAULT 0,
                                 SelectedExercises NVARCHAR(MAX) DEFAULT '',
-                                SelectedSupplements NVARCHAR(MAX) DEFAULT ''
+                                SelectedSupplements NVARCHAR(MAX) DEFAULT '',
+                                ProfileNotes NVARCHAR(MAX) DEFAULT ''
                             )
+                        END
+                        -- Add ProfileNotes column if table exists but column doesn't
+                        IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'UserPreferences' AND COLUMN_NAME = 'ProfileNotes')
+                        BEGIN
+                            ALTER TABLE UserPreferences ADD ProfileNotes NVARCHAR(MAX) DEFAULT ''
                         END";
                     await command.ExecuteNonQueryAsync();
                 }
@@ -1987,7 +1993,7 @@ namespace RubberJointsAI.Data
             using var connection = new SqlConnection(_connectionString);
             await connection.OpenAsync();
             using var cmd = connection.CreateCommand();
-            cmd.CommandText = "SELECT UserId, HasGym, DaysPerWeek, OnboardingStep, SelectedExercises, SelectedSupplements FROM UserPreferences WHERE UserId = @userId";
+            cmd.CommandText = "SELECT UserId, HasGym, DaysPerWeek, OnboardingStep, SelectedExercises, SelectedSupplements, ISNULL(ProfileNotes, '') FROM UserPreferences WHERE UserId = @userId";
             cmd.Parameters.AddWithValue("@userId", userId);
             using var reader = await cmd.ExecuteReaderAsync();
             if (await reader.ReadAsync())
@@ -1999,7 +2005,8 @@ namespace RubberJointsAI.Data
                     DaysPerWeek = reader.GetInt32(2),
                     OnboardingStep = reader.GetInt32(3),
                     SelectedExercises = reader.IsDBNull(4) ? "" : reader.GetString(4),
-                    SelectedSupplements = reader.IsDBNull(5) ? "" : reader.GetString(5)
+                    SelectedSupplements = reader.IsDBNull(5) ? "" : reader.GetString(5),
+                    ProfileNotes = reader.IsDBNull(6) ? "" : reader.GetString(6)
                 };
             }
             return null;
@@ -2012,21 +2019,22 @@ namespace RubberJointsAI.Data
             using var cmd = connection.CreateCommand();
             cmd.CommandText = @"
                 MERGE INTO UserPreferences AS target
-                USING (VALUES (@userId, @hasGym, @daysPerWeek, @onboardingStep, @selectedExercises, @selectedSupplements))
-                    AS source (UserId, HasGym, DaysPerWeek, OnboardingStep, SelectedExercises, SelectedSupplements)
+                USING (VALUES (@userId, @hasGym, @daysPerWeek, @onboardingStep, @selectedExercises, @selectedSupplements, @profileNotes))
+                    AS source (UserId, HasGym, DaysPerWeek, OnboardingStep, SelectedExercises, SelectedSupplements, ProfileNotes)
                 ON target.UserId = source.UserId
                 WHEN MATCHED THEN UPDATE SET
                     HasGym = source.HasGym, DaysPerWeek = source.DaysPerWeek,
                     OnboardingStep = source.OnboardingStep, SelectedExercises = source.SelectedExercises,
-                    SelectedSupplements = source.SelectedSupplements
-                WHEN NOT MATCHED THEN INSERT (UserId, HasGym, DaysPerWeek, OnboardingStep, SelectedExercises, SelectedSupplements)
-                    VALUES (source.UserId, source.HasGym, source.DaysPerWeek, source.OnboardingStep, source.SelectedExercises, source.SelectedSupplements);";
+                    SelectedSupplements = source.SelectedSupplements, ProfileNotes = source.ProfileNotes
+                WHEN NOT MATCHED THEN INSERT (UserId, HasGym, DaysPerWeek, OnboardingStep, SelectedExercises, SelectedSupplements, ProfileNotes)
+                    VALUES (source.UserId, source.HasGym, source.DaysPerWeek, source.OnboardingStep, source.SelectedExercises, source.SelectedSupplements, source.ProfileNotes);";
             cmd.Parameters.AddWithValue("@userId", prefs.UserId);
             cmd.Parameters.AddWithValue("@hasGym", prefs.HasGym);
             cmd.Parameters.AddWithValue("@daysPerWeek", prefs.DaysPerWeek);
             cmd.Parameters.AddWithValue("@onboardingStep", prefs.OnboardingStep);
             cmd.Parameters.AddWithValue("@selectedExercises", prefs.SelectedExercises ?? "");
             cmd.Parameters.AddWithValue("@selectedSupplements", prefs.SelectedSupplements ?? "");
+            cmd.Parameters.AddWithValue("@profileNotes", prefs.ProfileNotes ?? "");
             await cmd.ExecuteNonQueryAsync();
         }
 

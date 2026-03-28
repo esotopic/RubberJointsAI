@@ -187,7 +187,8 @@ public class UserPreferences
     public string UserId { get; set; } = "";
     public bool HasGym { get; set; }
     public int DaysPerWeek { get; set; } = 3;
-    public int OnboardingStep { get; set; } // 0=welcome, 1=gym done, 2=days done, 3=warmup done, 4=mobility done, 5=recovery done, 6=supplements done, 7=complete
+    public int OnboardingStep { get; set; } // 0=welcome, 1=AI questionnaire, 7=complete
     public string SelectedExercises { get; set; } = ""; // comma-separated exercise IDs
     public string SelectedSupplements { get; set; } = ""; // comma-separated supplement IDs
+    public string ProfileNotes { get; set; } = ""; // AI-gathered user profile: goals, problem areas, activity level, equipment, etc.
 }

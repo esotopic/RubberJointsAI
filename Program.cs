@@ -604,174 +604,186 @@ app.MapPost("/api/ai/chat", async (HttpContext context, RubberJointsAIRepository
             return Results.Json(new { success = false, error = "AI not configured" }, statusCode: 500);
 
         // ═══════════════════════════════════════════════════════════
-        //  ONBOARDING MODE
+        //  ONBOARDING MODE — AI-driven personalized questionnaire
         // ═══════════════════════════════════════════════════════════
         if (isOnboarding)
         {
             if (prefs == null)
                 prefs = new RubberJointsAI.Models.UserPreferences { UserId = userId, OnboardingStep = 0 };
 
-            // Process selection if provided
-            if (selectionStep.HasValue)
+            // Step 0: Welcome acknowledged → move to step 1 (AI questionnaire)
+            if (selectionStep.HasValue && selectionStep.Value == 0)
             {
-                switch (selectionStep.Value)
-                {
-                    case 0: // Welcome acknowledged → move to step 1 (schedule + choice)
-                        prefs.OnboardingStep = 1;
-                        break;
-                    case 1: // days/schedule selection — generate directly or go to customize
-                        int selectedDayCount = 4; // default
-                        if (selectionData.TryGetProperty("days_per_week", out var dpw))
-                            selectedDayCount = dpw.GetInt32();
-
-                        bool isQuickStart = selectionData.TryGetProperty("quick_start", out var qs) && qs.GetBoolean();
-                        if (isQuickStart)
-                        {
-                            // Generate plan with ALL exercises
-                            var autoExercises = await repository.GetAllExercisesAsync();
-                            var autoIds = autoExercises.Select(e => e.Id).ToList();
-                            prefs.SelectedExercises = string.Join(",", autoIds);
-                            prefs.DaysPerWeek = selectedDayCount;
-                            prefs.SelectedSupplements = "";
-                            prefs.OnboardingStep = 7;
-                            await repository.SaveUserPreferencesAsync(prefs);
-                            await repository.GenerateCustomPlanAsync(userId, prefs);
-                            var qsPrompt = $"You are the AI Coach for a hilariously serious joint & mobility workout program — because your joints called and they want better treatment. The user '{userId}' just did a quick setup! Their 4-week plan has been auto-generated: {selectedDayCount} days/week using all available exercises! Each session has 3 sections: a quick warm-up, 10-20 min of targeted mobility (rotated daily — CARs, hip switches, cat-cow, wall slides, deep squats, dead hangs, etc.), and a recovery cool-down (foam roller, yoga flow, cold plunge, etc.). The exercises rotate each day so it stays interesting! Celebrate! Keep it to 2-3 sentences. Make a funny joint/mobility joke. Tell them to tap START TRAINING to begin. Mention they can remove exercises they don't want from the Workout tab.";
-                            var qsText = await CallClaudeAsync(httpFactory, apiKey, qsPrompt, "Quick start!", history);
-                            return Results.Json(new { success = true, response = qsText, onboarding_step = 7, onboarding_complete = true });
-                        }
-
-                        // Customize path: go to step 2 (deselect picker)
-                        prefs.DaysPerWeek = selectedDayCount;
-                        prefs.OnboardingStep = 2;
-                        break;
-                    case 2: // Warm-up customization: deselect warmups you don't want
-                    {
-                        var keptIds = new List<string>();
-                        if (selectionData.TryGetProperty("kept_ids", out var keptEl))
-                            foreach (var id in keptEl.EnumerateArray()) keptIds.Add(id.GetString() ?? "");
-                        // Store warmup selections, move to mobility
-                        prefs.SelectedExercises = string.Join(",", keptIds);
-                        prefs.OnboardingStep = 3;
-                        break;
-                    }
-                    case 3: // Mobility customization: deselect mobility you don't want
-                    {
-                        var keptIds = new List<string>();
-                        if (selectionData.TryGetProperty("kept_ids", out var keptEl))
-                            foreach (var id in keptEl.EnumerateArray()) keptIds.Add(id.GetString() ?? "");
-                        // Append mobility to existing warmup selections
-                        var existing = (prefs.SelectedExercises ?? "").Split(',', StringSplitOptions.RemoveEmptyEntries).ToList();
-                        existing.AddRange(keptIds);
-                        prefs.SelectedExercises = string.Join(",", existing);
-                        prefs.OnboardingStep = 4;
-                        break;
-                    }
-                    case 4: // Recovery customization: deselect recovery you don't want
-                    {
-                        var keptIds = new List<string>();
-                        if (selectionData.TryGetProperty("kept_ids", out var keptEl))
-                            foreach (var id in keptEl.EnumerateArray()) keptIds.Add(id.GetString() ?? "");
-                        // Append recovery to existing selections
-                        var existing = (prefs.SelectedExercises ?? "").Split(',', StringSplitOptions.RemoveEmptyEntries).ToList();
-                        existing.AddRange(keptIds);
-                        prefs.SelectedExercises = string.Join(",", existing);
-                        prefs.OnboardingStep = 5;
-                        break;
-                    }
-                    case 5: // Supplements: user opts IN to supplements they want
-                    {
-                        var selectedSuppIds = new List<string>();
-                        if (selectionData.TryGetProperty("selected_ids", out var selEl))
-                            foreach (var id in selEl.EnumerateArray()) selectedSuppIds.Add(id.GetString() ?? "");
-                        prefs.SelectedSupplements = string.Join(",", selectedSuppIds);
-                        prefs.OnboardingStep = 7;
-                        await repository.SaveUserPreferencesAsync(prefs);
-                        await repository.GenerateCustomPlanAsync(userId, prefs);
-                        var exIds = (prefs.SelectedExercises ?? "").Split(',', StringSplitOptions.RemoveEmptyEntries);
-                        int exCount = exIds.Length;
-                        int suppCount = selectedSuppIds.Count;
-                        var custPrompt = $"You are the AI Coach for a hilariously serious joint & mobility workout program. The user '{userId}' just finished customizing their plan! They selected {exCount} exercises and {suppCount} supplements. Their 4-week plan has been generated: {prefs.DaysPerWeek} days/week, each session has warm-up, mobility, and recovery sections that rotate daily. Week 1 starts gentle to build the habit, then gradually increases. Celebrate! Keep it to 2-3 sentences. Make a funny joint/mobility joke. Tell them to tap START TRAINING to begin.";
-                        var custText = await CallClaudeAsync(httpFactory, apiKey, custPrompt, "Plan customized!", history);
-                        return Results.Json(new { success = true, response = custText, onboarding_step = 7, onboarding_complete = true });
-                    }
-                }
+                prefs.OnboardingStep = 1;
                 await repository.SaveUserPreferencesAsync(prefs);
             }
 
-            // Build onboarding system prompt for current step
             int step = prefs.OnboardingStep;
-            var allExercises = await repository.GetAllExercisesAsync();
 
-            string stepContext = step switch
+            // Step 0: Show welcome + Let's Go button
+            if (step == 0)
             {
-                0 => "Welcome the user! This is their very first time. Give a warm, short intro to the program: it's a 4-week joint health & mobility program with warm-ups, mobility work, and recovery. The app will show a 'Let's Go' button below. Keep it to 2-3 sentences. Make a funny joint/mobility joke.",
-                1 => "The app will show options below: 'Generate My Plan' (uses all exercises, starts right away) or 'Customize First' (lets them remove exercises they don't want). Keep it to 2 sentences. Say something encouraging.",
-                2 => "Time to pick warm-up exercises! Everything is turned on by default — just tap to remove any warm-ups that don't work for you. 1-2 sentences, keep it light.",
-                3 => "Now for mobility exercises! Same deal — everything's enabled, just turn off what you don't want. 1-2 sentences, be encouraging about mobility.",
-                4 => "Last exercise category: recovery tools! Turn off anything you don't have access to. 1-2 sentences, say something fun about recovery.",
-                5 => "Final step: supplements! These are all OFF by default — turn on any you want to track. Totally optional. 1-2 sentences, be chill about it.",
-                _ => "Onboarding complete."
-            };
+                string welcomePrompt = $@"You are the AI Coach for a hilariously serious joint & mobility workout program — because your joints deserve better than cracking every time you stand up.
+The user '{userId}' just arrived for the very first time.
 
-            string onboardingSystemPrompt = $@"You are the AI Coach for a hilariously serious joint & mobility workout program — because your joints deserve better than cracking every time you stand up.
-The user '{userId}' is going through initial setup (onboarding step {step} of 7).
-
-YOUR JOB: {stepContext}
+YOUR JOB: Welcome them warmly! This is a personalized 4-week joint health & mobility program. Tell them you're going to ask a few quick questions to build a plan just for them. The app will show a 'Let's Go' button below. Keep it to 2-3 sentences. Make a funny joint/mobility joke.
 
 RULES:
 - Keep responses SHORT (2-3 sentences max). Mobile users.
 - Be warm, funny, encouraging. Joint/mobility humor is great.
-- The app shows interactive UI below your message — do NOT list exercises or options.
-- Do NOT use bullet points or numbered lists.
-- Do NOT say 'I' or refer to yourself excessively.";
-
-            // Get Claude text for this step
-            string aiResponse = await CallClaudeAsync(httpFactory, apiKey, onboardingSystemPrompt,
-                string.IsNullOrEmpty(userMessage) ? "Let's go!" : userMessage, history);
-
-            // Build UI component for current step
-            object? uiComponent = null;
-            var allSupplements = step == 5 ? await repository.GetSupplementsAsync() : new List<RubberJointsAI.Models.Supplement>();
-            switch (step)
-            {
-                case 0: // Welcome — simple "Let's Go" button
-                    uiComponent = new { type = "welcome_start", id = "welcome" };
-                    break;
-                case 1: // Generate plan or customize
-                    uiComponent = new { type = "plan_or_customize", id = "plan_choice" };
-                    break;
-                case 2: // Warm-up exercises (deselect what you don't want)
-                {
-                    var items = allExercises.Where(e => e.Category == "warmup_tool")
-                        .Select(e => new { id = e.Id, name = e.Name, description = e.Targets, rx = e.DefaultRx ?? "" }).ToList();
-                    uiComponent = new { type = "category_deselect_picker", id = "warmup_picker", category_label = "🔥 Warm-Up Exercises", items, mode = "deselect" };
-                    break;
-                }
-                case 3: // Mobility exercises (deselect what you don't want)
-                {
-                    var items = allExercises.Where(e => e.Category == "mobility")
-                        .Select(e => new { id = e.Id, name = e.Name, description = e.Targets, rx = e.DefaultRx ?? "" }).ToList();
-                    uiComponent = new { type = "category_deselect_picker", id = "mobility_picker", category_label = "🧘 Mobility Exercises", items, mode = "deselect" };
-                    break;
-                }
-                case 4: // Recovery exercises (deselect what you don't want)
-                {
-                    var items = allExercises.Where(e => e.Category == "recovery_tool")
-                        .Select(e => new { id = e.Id, name = e.Name, description = e.Targets, rx = e.DefaultRx ?? "" }).ToList();
-                    uiComponent = new { type = "category_deselect_picker", id = "recovery_picker", category_label = "🧊 Recovery Tools", items, mode = "deselect" };
-                    break;
-                }
-                case 5: // Supplements (opt-in: all OFF by default)
-                {
-                    var items = allSupplements
-                        .Select(s => new { id = s.Id, name = s.Name, description = s.Dose ?? "", rx = s.Time ?? "", timeGroup = s.TimeGroup ?? "am" }).ToList();
-                    uiComponent = new { type = "category_deselect_picker", id = "supplement_picker", category_label = "💊 Supplements (Optional)", items, mode = "select" };
-                    break;
-                }
+- Do NOT use bullet points or numbered lists.";
+                string aiResponse0 = await CallClaudeAsync(httpFactory, apiKey, welcomePrompt,
+                    string.IsNullOrEmpty(userMessage) ? "Hello!" : userMessage, history);
+                object uiComp0 = new { type = "welcome_start", id = "welcome" };
+                return Results.Json(new { success = true, response = aiResponse0, onboarding_step = 0, ui_component = uiComp0 });
             }
 
-            return Results.Json(new { success = true, response = aiResponse, onboarding_step = step, ui_component = uiComponent });
+            // Step 1: AI-driven conversational questionnaire with tool use
+            var allExercises = await repository.GetAllExercisesAsync();
+            var exerciseList = string.Join(", ", allExercises.Select(e => $"{e.Name} [{e.Category}]"));
+
+            string questionnaireSystem = $@"You are the AI Coach for a hilariously serious joint & mobility workout program — because your joints called and they want better treatment.
+
+The user '{userId}' is new and you're getting to know them to build a personalized plan.
+
+=== YOUR MISSION ===
+Have a NATURAL, FRIENDLY conversation to learn about the user. Ask ONE question at a time. Be conversational — this is a chat, not a form.
+
+=== WHAT YOU NEED TO LEARN (in roughly this order) ===
+1. What brought them here? (joint pain, stiffness, injury recovery, prevention, general mobility, athletic performance)
+2. Problem areas — which joints/body parts bother them most? (knees, back, shoulders, hips, neck, wrists, ankles, etc.)
+3. Current activity level (sedentary, lightly active, moderately active, very active)
+4. What equipment/tools do they have? (foam roller, resistance bands, yoga mat, lacrosse ball, pull-up bar, cold plunge, sauna, etc.) — or are they starting from scratch?
+5. How many days per week can they commit? (2-6)
+6. Any injuries, surgeries, or conditions to be careful about?
+
+=== CONVERSATION RULES ===
+- Ask ONE question at a time. Wait for their answer before asking the next.
+- Keep each message SHORT (2-3 sentences max). Mobile users.
+- Be warm, funny, encouraging. Joint/mobility humor welcome.
+- Acknowledge their answers before asking the next question (e.g., 'Oh man, stiff hips are the WORST' or 'Nice — a foam roller is a game changer!').
+- Do NOT use bullet points or numbered lists.
+- If the user gives a long answer that covers multiple questions, great — skip ahead to what you don't know yet.
+- After you have enough info (usually 4-6 exchanges), call the finalize_onboarding tool with a summary.
+
+=== AVAILABLE EXERCISES IN OUR SYSTEM ===
+{exerciseList}
+
+=== WHEN TO FINALIZE ===
+Call finalize_onboarding when you know at least: (1) their main goal/motivation, (2) problem areas, (3) days per week. Equipment and activity level are nice-to-have but not required — if they seem eager to start, don't drag it out. When in doubt, lean toward finishing sooner. The user can always adjust later from Settings.
+
+DO NOT tell the user you're calling a tool. Just say something celebratory and mention their plan is being built.";
+
+            // Onboarding questionnaire tools
+            var onboardingTools = new object[]
+            {
+                new { name = "finalize_onboarding", description = "Call this when you've gathered enough info about the user. Saves their profile and generates a personalized plan.",
+                    input_schema = new { type = "object", properties = new {
+                        profile_summary = new { type = "string", description = "A concise summary of what you learned: goals, problem areas, activity level, equipment, injuries/cautions. This will be stored and used in all future conversations." },
+                        days_per_week = new { type = "integer", description = "How many days per week the user wants to train (2-6). Default 4 if not explicitly stated." },
+                        problem_areas = new { type = "string", description = "Comma-separated list of problem areas (e.g. 'knees,lower back,hips')" },
+                        has_equipment = new { type = "boolean", description = "Whether user has recovery/mobility equipment" }
+                    }, required = new[] { "profile_summary", "days_per_week" } } }
+            };
+
+            // Build messages
+            var onboardMessages = new List<object>();
+            foreach (var h in history) onboardMessages.Add(h);
+            if (!string.IsNullOrWhiteSpace(userMessage))
+                onboardMessages.Add(new { role = "user", content = userMessage });
+
+            if (onboardMessages.Count == 0)
+                onboardMessages.Add(new { role = "user", content = "Let's go!" });
+
+            // Tool use loop for onboarding
+            var obClient = httpFactory.CreateClient("Anthropic");
+            obClient.DefaultRequestHeaders.Add("x-api-key", apiKey);
+            string obAiText = "";
+            bool onboardingComplete = false;
+            int obMaxLoops = 5;
+
+            for (int loop = 0; loop < obMaxLoops; loop++)
+            {
+                var obReqBody = new { model = "claude-haiku-4-5-20251001", max_tokens = 600, system = questionnaireSystem, tools = onboardingTools, messages = onboardMessages };
+                var obJsonContent = new StringContent(JsonSerializer.Serialize(obReqBody), Encoding.UTF8, "application/json");
+                var obResponse = await obClient.PostAsync("v1/messages", obJsonContent);
+                var obResponseBody = await obResponse.Content.ReadAsStringAsync();
+
+                if (!obResponse.IsSuccessStatusCode)
+                {
+                    app.Logger.LogError("Anthropic API error (onboarding): {Status} {Body}", obResponse.StatusCode, obResponseBody);
+                    return Results.Json(new { success = false, error = $"AI error: {obResponse.StatusCode}" }, statusCode: 500);
+                }
+
+                using var obDoc = JsonDocument.Parse(obResponseBody);
+                var obRoot = obDoc.RootElement;
+                string obStopReason = obRoot.GetProperty("stop_reason").GetString() ?? "";
+                var obContentBlocks = obRoot.GetProperty("content");
+
+                var obTextParts = new List<string>();
+                var obToolCalls = new List<(string id, string name, JsonElement input)>();
+                var obAssistantBlocks = new List<object>();
+
+                foreach (var block in obContentBlocks.EnumerateArray())
+                {
+                    string bt = block.GetProperty("type").GetString() ?? "";
+                    if (bt == "text")
+                    {
+                        string t = block.GetProperty("text").GetString() ?? "";
+                        obTextParts.Add(t);
+                        obAssistantBlocks.Add(new { type = "text", text = t });
+                    }
+                    else if (bt == "tool_use")
+                    {
+                        string tid = block.GetProperty("id").GetString() ?? "";
+                        string tn = block.GetProperty("name").GetString() ?? "";
+                        var ti = block.GetProperty("input").Clone();
+                        obToolCalls.Add((tid, tn, ti));
+                        obAssistantBlocks.Add(new { type = "tool_use", id = tid, name = tn, input = ti });
+                    }
+                }
+
+                obAiText = string.Join("", obTextParts);
+
+                if (obStopReason != "tool_use" || obToolCalls.Count == 0)
+                    break;
+
+                // Execute finalize_onboarding tool
+                onboardMessages.Add(new { role = "assistant", content = obAssistantBlocks });
+                var obToolResults = new List<object>();
+
+                foreach (var (tid, tn, ti) in obToolCalls)
+                {
+                    if (tn == "finalize_onboarding")
+                    {
+                        string profileSummary = ti.TryGetProperty("profile_summary", out var ps) ? ps.GetString() ?? "" : "";
+                        int daysPerWeek = ti.TryGetProperty("days_per_week", out var dpw2) ? dpw2.GetInt32() : 4;
+                        string problemAreas = ti.TryGetProperty("problem_areas", out var pa) ? pa.GetString() ?? "" : "";
+                        bool hasEquipment = ti.TryGetProperty("has_equipment", out var he) && he.GetBoolean();
+
+                        // Save profile + generate plan with all exercises
+                        var autoExercises = await repository.GetAllExercisesAsync();
+                        prefs.ProfileNotes = profileSummary;
+                        prefs.DaysPerWeek = daysPerWeek;
+                        prefs.HasGym = hasEquipment;
+                        prefs.SelectedExercises = string.Join(",", autoExercises.Select(e => e.Id));
+                        prefs.SelectedSupplements = "";
+                        prefs.OnboardingStep = 7;
+                        await repository.SaveUserPreferencesAsync(prefs);
+                        await repository.GenerateCustomPlanAsync(userId, prefs);
+
+                        onboardingComplete = true;
+                        obToolResults.Add(new { type = "tool_result", tool_use_id = tid, content = $"Plan generated successfully! {daysPerWeek} days/week, {autoExercises.Count} exercises, all categories included. Profile saved. Problem areas: {problemAreas}. The user can now tap START TRAINING to begin. They can customize exercises from the Settings page." });
+                    }
+                    else
+                    {
+                        obToolResults.Add(new { type = "tool_result", tool_use_id = tid, content = "Unknown tool" });
+                    }
+                }
+                onboardMessages.Add(new { role = "user", content = obToolResults });
+            }
+
+            return Results.Json(new { success = true, response = obAiText, onboarding_step = onboardingComplete ? 7 : 1, onboarding_complete = onboardingComplete });
         }
 
         // ═══════════════════════════════════════════════════════════
@@ -864,6 +876,16 @@ RULES:
         sb2.AppendLine("ALLOWED exercise examples: ice bath, cold plunge, sauna, infrared sauna, percussion massage, TENS unit, inversion table, resistance bands, foam roller, lacrosse ball, yoga, tai chi, pilates, swimming (recovery), stretching tools, balance board, wobble board, etc.");
         sb2.AppendLine("ALLOWED supplement examples: collagen, MSM, turmeric, omega-3, glucosamine, vitamin D, magnesium, hyaluronic acid, boswellia, CBD oil, tart cherry, bromelain, etc.");
         sb2.AppendLine();
+
+        // Include user profile if available (from onboarding questionnaire)
+        var userProfile = prefs?.ProfileNotes ?? "";
+        if (!string.IsNullOrWhiteSpace(userProfile))
+        {
+            sb2.AppendLine("=== USER PROFILE (gathered during onboarding) ===");
+            sb2.AppendLine(userProfile);
+            sb2.AppendLine("Use this context to personalize your responses — reference their goals, problem areas, and situation when relevant.");
+            sb2.AppendLine();
+        }
 
         sb2.AppendLine("=== LIVE USER DATA ===");
         sb2.AppendLine($"User: {userId} | Today: {dayOfWeek}, {todayDate} | Enrollment: {enrollmentInfo} | Session type: {dayType2}");
@@ -1184,6 +1206,48 @@ RULES:
         app.Logger.LogError(ex, "AI chat error");
         return Results.Json(new { success = false, error = ex.Message }, statusCode: 500);
     }
+});
+
+// ── Chat history persistence (session-scoped, in-memory) ──
+app.MapGet("/api/ai/history", (HttpContext context, IMemoryCache cache) =>
+{
+    if (context.User.Identity?.IsAuthenticated != true)
+        return Results.Unauthorized();
+    string userId = context.User.Identity?.Name ?? "default";
+    string cacheKey = $"chat-history:{userId}";
+    var history = cache.Get<List<Dictionary<string, string>>>(cacheKey) ?? new List<Dictionary<string, string>>();
+    return Results.Json(new { success = true, history });
+});
+
+app.MapPost("/api/ai/history", async (HttpContext context, IMemoryCache cache) =>
+{
+    if (context.User.Identity?.IsAuthenticated != true)
+        return Results.Unauthorized();
+    string userId = context.User.Identity?.Name ?? "default";
+    string cacheKey = $"chat-history:{userId}";
+
+    using var doc = await JsonDocument.ParseAsync(context.Request.Body);
+    var root = doc.RootElement;
+
+    var history = cache.Get<List<Dictionary<string, string>>>(cacheKey) ?? new List<Dictionary<string, string>>();
+
+    if (root.TryGetProperty("messages", out var msgs) && msgs.ValueKind == JsonValueKind.Array)
+    {
+        foreach (var msg in msgs.EnumerateArray())
+        {
+            string role = msg.TryGetProperty("role", out var r) ? r.GetString() ?? "user" : "user";
+            string content = msg.TryGetProperty("content", out var c) ? c.GetString() ?? "" : "";
+            if (!string.IsNullOrEmpty(content))
+                history.Add(new Dictionary<string, string> { ["role"] = role, ["content"] = content });
+        }
+    }
+
+    // Keep max 50 messages to avoid memory bloat
+    if (history.Count > 50)
+        history = history.Skip(history.Count - 50).ToList();
+
+    cache.Set(cacheKey, history, TimeSpan.FromHours(8));
+    return Results.Json(new { success = true, count = history.Count });
 });
 
 // Helper: Simple Claude call for onboarding text

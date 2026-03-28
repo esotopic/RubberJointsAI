@@ -33,11 +33,6 @@
     .ui-confirm-stat { font-size:13px; color:var(--tx2); margin:4px 0; }
     .ui-confirm-stat strong { color:var(--tx1); }
     .ui-confirm-btn { display:block; width:100%; padding:14px; background:linear-gradient(135deg, var(--acc), #34c759); color:#fff; border:none; border-radius:12px; font-size:16px; font-weight:700; cursor:pointer; margin-top:12px; letter-spacing:0.02em; }
-    /* Onboarding progress bar */
-    .onboarding-bar { display:flex; gap:3px; padding:8px 16px; }
-    .onboarding-dot { flex:1; height:4px; border-radius:2px; background:var(--bdr); transition:background .3s; }
-    .onboarding-dot.done { background:var(--acc); }
-    .onboarding-dot.active { background:var(--grn); }
 </style>
 
 <div class="ai-container">
@@ -68,14 +63,7 @@
         else
         {
             <div class="ai-topbar-combined" style="justify-content:center;">
-                <span class="ai-topbar-week" style="font-size:15px;font-weight:700;letter-spacing:0.04em;">🔧 Setup</span>
-            </div>
-            <div class="onboarding-bar" id="onboardingBar">
-                @{ var dotStep = Model.OnboardingStep >= 7 ? 6 : Model.OnboardingStep; }
-                @for (int i = 0; i < 6; i++)
-                {
-                    <div class="onboarding-dot @(i < dotStep ? "done" : "") @(i == dotStep ? "active" : "")"></div>
-                }
+                <span class="ai-topbar-week" style="font-size:15px;font-weight:700;letter-spacing:0.04em;">🔧 Getting to know you</span>
             </div>
         }
 
@@ -96,8 +84,8 @@
             {
                 <div class="onboarding-welcome" id="onboardingWelcome">
                     <div style="text-align:center;padding:18px 16px 8px;">
-                        <div style="font-size:17px;font-weight:700;color:var(--tx1);">First Time Setup</div>
-                        <div style="font-size:13px;color:var(--tx3);margin-top:2px;">(this will only take a minute)</div>
+                        <div style="font-size:17px;font-weight:700;color:var(--tx1);">Welcome!</div>
+                        <div style="font-size:13px;color:var(--tx3);margin-top:2px;">Let's build your personalized plan</div>
                     </div>
                     <div class="ai-joke-card ai-joke-in-scroll" style="margin:8px 12px;">
                         <div class="ai-joke-icon">😂</div>
@@ -239,6 +227,15 @@ async function sendMessage(text, selection) {
             bubble.innerHTML = formatResponse(data.response);
             conversationHistory.push({ role: 'assistant', content: data.response });
 
+            // Save new messages to server for persistence
+            if (!IS_ONBOARDING) {
+                const newMsgs = [];
+                if (text) newMsgs.push({ role: 'user', content: text });
+                newMsgs.push({ role: 'assistant', content: data.response });
+                fetch('/api/ai/history', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ messages: newMsgs }), credentials: 'same-origin' }).catch(() => {});
+            }
+
             // Render UI component if present (onboarding)
             if (data.ui_component) {
                 const uiContainer = document.createElement('div');
@@ -247,10 +244,9 @@ async function sendMessage(text, selection) {
                 bubble.appendChild(uiContainer);
             }
 
-            // Update onboarding progress bar
+            // Update onboarding step
             if (data.onboarding_step !== undefined) {
                 currentOnboardingStep = data.onboarding_step;
-                updateOnboardingBar(data.onboarding_step);
             }
 
             // Onboarding complete — show message then go to Workout
@@ -279,121 +275,14 @@ function renderUIComponent(container, comp, step) {
         btn.style.cssText = 'background:linear-gradient(135deg,#6366f1,#8b5cf6);color:#fff;border:none;border-radius:12px;padding:14px 24px;font-size:15px;font-weight:600;cursor:pointer;width:90%;max-width:320px;';
         btn.addEventListener('click', () => {
             div.style.pointerEvents='none'; div.style.opacity='0.6';
+            // Hide the welcome card when user clicks Let's Go
+            const welcomeCard = document.getElementById('onboardingWelcome');
+            if (welcomeCard) welcomeCard.style.display = 'none';
             sendMessage('Let\'s go!', { step: 0, data: {} });
         });
         div.appendChild(btn);
         container.appendChild(div);
     }
-    else if (comp.type === 'plan_or_customize') {
-        // Home users: generate plan or customize
-        const div = document.createElement('div');
-        div.style.cssText = 'text-align:center;padding:8px 0;';
-
-        const genBtn = document.createElement('button');
-        genBtn.textContent = '⚡ Generate My Plan';
-        genBtn.style.cssText = 'background:linear-gradient(135deg,#6366f1,#8b5cf6);color:#fff;border:none;border-radius:12px;padding:14px 24px;font-size:15px;font-weight:600;cursor:pointer;width:90%;max-width:320px;';
-        genBtn.addEventListener('click', () => {
-            div.style.pointerEvents='none'; div.style.opacity='0.6';
-            sendMessage('⚡ Generate my plan!', { step: 1, data: { days_per_week: 4, quick_start: true } });
-        });
-        div.appendChild(genBtn);
-        const genNote = document.createElement('div');
-        genNote.style.cssText = 'font-size:11px;color:var(--tx3);margin:5px 0 14px;';
-        genNote.textContent = '4 days/week · all exercises included · customize anytime';
-        div.appendChild(genNote);
-
-        const orDiv = document.createElement('div');
-        orDiv.style.cssText = 'font-size:12px;color:var(--tx3);margin-bottom:10px;';
-        orDiv.textContent = '— or —';
-        div.appendChild(orDiv);
-
-        const custBtn = document.createElement('button');
-        custBtn.textContent = '🎨 Customize First';
-        custBtn.style.cssText = 'background:transparent;color:var(--acc);border:2px solid var(--acc);border-radius:12px;padding:12px 20px;font-size:13px;font-weight:600;cursor:pointer;width:90%;max-width:320px;';
-        custBtn.addEventListener('click', () => {
-            div.style.pointerEvents='none'; div.style.opacity='0.6';
-            sendMessage('Let me customize first', { step: 1, data: { days_per_week: 4 } });
-        });
-        div.appendChild(custBtn);
-        const custNote = document.createElement('div');
-        custNote.style.cssText = 'font-size:11px;color:var(--tx3);margin-top:5px;';
-        custNote.textContent = 'Remove exercises you don\'t have access to';
-        div.appendChild(custNote);
-
-        container.appendChild(div);
-    }
-    else if (comp.type === 'category_deselect_picker') {
-        const isDeselect = comp.mode === 'deselect';
-        const div = document.createElement('div');
-        div.className = 'ui-picker';
-        const selectedIds = new Set();
-        const totalCount = comp.items.length;
-        if (isDeselect) comp.items.forEach(item => selectedIds.add(item.id));
-
-        const grid = document.createElement('div');
-        grid.className = 'ui-picker-grid';
-
-        const label = document.createElement('div');
-        label.className = 'supp-group-label';
-        label.textContent = comp.category_label;
-        grid.appendChild(label);
-
-        comp.items.forEach(item => {
-            const el = document.createElement('div');
-            el.className = isDeselect ? 'ui-picker-item selected' : 'ui-picker-item';
-            const desc = item.description || '';
-            const rx = item.rx || '';
-            el.innerHTML = `<span class="pick-check"></span><span class="pick-name">${item.name}</span>${desc ? `<span class="pick-desc">${desc}</span>` : ''}${rx ? `<span class="pick-rx">${rx}</span>` : ''}`;
-            el.addEventListener('click', () => {
-                el.classList.toggle('selected');
-                if (el.classList.contains('selected')) selectedIds.add(item.id);
-                else selectedIds.delete(item.id);
-                updateBtn();
-            });
-            grid.appendChild(el);
-        });
-
-        const confirmBtn = document.createElement('button');
-        confirmBtn.className = 'ui-picker-confirm';
-        confirmBtn.disabled = false;
-
-        function updateBtn() {
-            if (isDeselect) {
-                const removed = totalCount - selectedIds.size;
-                confirmBtn.textContent = removed > 0
-                    ? `Next → (keeping ${selectedIds.size} of ${totalCount})`
-                    : `Next → (all ${totalCount})`;
-            } else {
-                confirmBtn.textContent = selectedIds.size > 0
-                    ? `Finish → (${selectedIds.size} selected)`
-                    : `Skip → (none selected)`;
-            }
-        }
-        updateBtn();
-
-        confirmBtn.addEventListener('click', () => {
-            confirmBtn.disabled = true; confirmBtn.textContent = '⏳ Loading...';
-            grid.querySelectorAll('.ui-picker-item').forEach(i => i.style.pointerEvents='none');
-            if (isDeselect) {
-                sendMessage(`Kept ${selectedIds.size} of ${totalCount}`, { step, data: { kept_ids: [...selectedIds] } });
-            } else {
-                sendMessage(`Selected ${selectedIds.size}`, { step, data: { selected_ids: [...selectedIds] } });
-            }
-        });
-
-        div.appendChild(grid);
-        div.appendChild(confirmBtn);
-        container.appendChild(div);
-    }
-}
-
-function updateOnboardingBar(step) {
-    // Steps: 0,1,2,3,4,5 → dots 0-5. Step 7 = complete (all done).
-    const dotStep = step >= 7 ? 6 : step;
-    document.querySelectorAll('.onboarding-dot').forEach((dot, i) => {
-        dot.classList.toggle('done', i < dotStep);
-        dot.classList.toggle('active', i === dotStep);
-    });
 }
 
 // ═══ Format response ═══
@@ -430,7 +319,6 @@ async function sendOnboardingInit() {
             }
             if (data.onboarding_step !== undefined) {
                 currentOnboardingStep = data.onboarding_step;
-                updateOnboardingBar(data.onboarding_step);
             }
         } else {
             bubble.innerHTML = `<p style="color:var(--red);">Something went wrong. ${data.error || 'Please refresh.'}</p>`;
@@ -457,8 +345,8 @@ document.getElementById('newChatBtn')?.addEventListener('click', function() {
     sidebar?.classList.remove('open'); overlay?.classList.remove('visible');
 });
 
-// ═══ Auto-send for onboarding or prompt param ═══
-(function() {
+// ═══ Load chat history + Auto-send for onboarding or prompt param ═══
+(async function() {
     if (IS_ONBOARDING) {
         // Show joke in onboarding welcome
         const oj = document.getElementById('onboardingJoke');
@@ -467,6 +355,30 @@ document.getElementById('newChatBtn')?.addEventListener('click', function() {
         setTimeout(() => sendOnboardingInit(), 600);
         return;
     }
+
+    // Load persisted chat history (joke still changes every load)
+    try {
+        const histResp = await fetch('/api/ai/history', { credentials: 'same-origin' });
+        const histData = await histResp.json();
+        if (histData.success && histData.history && histData.history.length > 0) {
+            const messagesDiv = document.getElementById('aiMessages');
+            histData.history.forEach(msg => {
+                conversationHistory.push({ role: msg.role, content: msg.content });
+                if (msg.role === 'user') {
+                    const el = document.createElement('div');
+                    el.className = 'ai-message ai-message-user';
+                    el.innerHTML = `<div class="ai-bubble ai-bubble-user">${escapeHtml(msg.content)}</div>`;
+                    messagesDiv.appendChild(el);
+                } else if (msg.role === 'assistant') {
+                    const el = document.createElement('div');
+                    el.className = 'ai-message ai-message-assistant';
+                    el.innerHTML = `<div class="ai-avatar"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L9 7l-5 1 3.5 3.5L7 17l5-2.5L17 17l-.5-5.5L20 8l-5-1z"></path></svg></div><div class="ai-bubble ai-bubble-assistant">${formatResponse(msg.content)}</div>`;
+                    messagesDiv.appendChild(el);
+                }
+            });
+            messagesDiv.scrollTop = messagesDiv.scrollHeight;
+        }
+    } catch (e) { /* ignore — fresh session */ }
 
     // Auto-send prompt from query param
     const params = new URLSearchParams(window.location.search);
