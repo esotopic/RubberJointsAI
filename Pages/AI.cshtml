@@ -88,10 +88,10 @@
         <!-- Messages area -->
         <div class="ai-messages" id="aiMessages">
 
-            <!-- Joke of the Day card -->
-            <div class="ai-joke-card">
+            <!-- Joke card — rotates on every message and page load -->
+            <div class="ai-joke-card" id="jokeCard">
                 <div class="ai-joke-icon">😂</div>
-                <div class="ai-joke-text">"@Model.JokeOfTheDay"</div>
+                <div class="ai-joke-text" id="jokeText"></div>
                 <div class="ai-joke-tagline">— Your joints, probably</div>
             </div>
 
@@ -149,10 +149,7 @@
 
             <!-- BIG START TRAINING BUTTON -->
             <a href="/" class="ai-start-training-btn">
-                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                    <polygon points="5 3 19 12 5 21 5 3"></polygon>
-                </svg>
-                START TRAINING
+                🔥 START TRAINING 💪
             </a>
 
             <!-- AI intro -->
@@ -215,6 +212,77 @@
 </div>
 
 <script>
+    // === JOKE ROTATION — changes on every page load AND every message ===
+    const jokes = [
+        "My knees sound like a haunted house every time I use the stairs.",
+        "I don't need an alarm clock. My joints crack so loud they wake up the whole house.",
+        "At 20, I could touch my toes. At 40, I'm happy if I can see them.",
+        "My doctor said I should do lunges to stay in shape. That would be a big step forward.",
+        "I told my knee to stop making noise. It said it was just trying to get a-joint-ment.",
+        "The only snaps, crackles, and pops I get now are from my body, not my cereal.",
+        "I stretched this morning and my back made a sound like bubble wrap at a birthday party.",
+        "My hip flexors are so tight, they have their own zip code.",
+        "My body doesn't wake up anymore — it negotiates with gravity first.",
+        "I used to be flexible. Now I pull a muscle reaching for the TV remote.",
+        "My joints predict the weather better than any app on my phone.",
+        "Getting out of bed used to take 2 seconds. Now it's a 5-stage process with sound effects.",
+        "My physical therapist laughed when I said I wanted to touch my toes. Then I laughed. Then we both cried.",
+        "I tried yoga once. The instructor said 'listen to your body.' My body said 'absolutely not.'",
+        "Age is just a number. But so is your creak-per-squat ratio, and mine is off the charts.",
+        "My knees are like popcorn — they pop at random and everyone around me can hear it.",
+        "I used to party until 2 AM. Now my joints party every time I stand up.",
+        "I don't stretch before exercise. I stretch before bending down to tie my shoes.",
+        "My ankles crack so loud, my neighbors asked if I was making popcorn.",
+        "Whoever said 'no pain, no gain' clearly never tried standing up after sitting on the floor.",
+        "I'm not old, I'm just... pre-owned with some joint noise.",
+        "My morning stretch routine sounds like someone stepping on Legos in a hallway.",
+        "I went to the gym and the trainer asked my fitness level. I said 'I can open a jar without crying.'",
+        "My joints have more complaints than a Yelp review section.",
+        "I thought my knee cracked because of arthritis. Turns out it's just applauding me for trying.",
+        "My skeleton sounds like a percussion section warming up.",
+        "I sneezed and threw out my back. That's my villain origin story.",
+        "My chiropractor has a frequent visitor card. I'm on my third one.",
+        "I don't crack my knuckles for fun. My knuckles crack themselves to assert dominance.",
+        "My joints pop so much, I'm basically a one-person band.",
+        "I dropped something on the floor. It lives there now.",
+        "My elbows sound like someone crumpling a paper bag every time I do a push-up.",
+        "My hips don't lie. And right now they're saying 'not today, buddy.'",
+        "I told my trainer I wanted a body like a Greek god. He said 'you already creak like an ancient relic.'",
+        "Stairs used to be transportation. Now they're a cardio workout with a soundtrack.",
+        "My shoulder cracks louder than my phone notification. People think I'm getting texts.",
+        "I used to run marathons. Now I run out of breath walking to the fridge.",
+        "I sat on the floor to play with my kids. I'm still trying to get back up. Send help.",
+        "My joints are so noisy, even my dog looks at me funny when I stand up.",
+        "I foam-rolled once. It was like a horror movie but I was both the victim and the monster.",
+        "If my joints had a Spotify playlist, it would be called 'Snap, Crackle & Suffering.'",
+        "My wrists crack so much, people think I'm typing in Morse code.",
+        "I call my morning stretch routine 'the symphony of regret.'",
+        "My right knee and left knee are in a competition to see who can be louder. Nobody wins.",
+        "I can't sneak up on anyone anymore. My ankles announce me three rooms away.",
+        "I asked my joints to be quiet. They said they'd file a noise complaint about my snoring first.",
+        "My spine sounds like a zipper every time I twist. A really old, rusty zipper.",
+        "The last time I was limber, dial-up internet was still a thing.",
+        "My joints pop so often I started counting. I lost count by breakfast.",
+        "I bent over to pick up my keys and my body played the entire percussion section of Beethoven's Fifth.",
+    ];
+
+    let jokeIndex = Math.floor(Math.random() * jokes.length);
+
+    function showNewJoke() {
+        jokeIndex = (jokeIndex + 1) % jokes.length;
+        const jokeText = document.getElementById('jokeText');
+        if (jokeText) {
+            jokeText.style.opacity = '0';
+            setTimeout(() => {
+                jokeText.textContent = '"' + jokes[jokeIndex] + '"';
+                jokeText.style.opacity = '1';
+            }, 200);
+        }
+    }
+
+    // Show a random joke on page load
+    document.getElementById('jokeText').textContent = '"' + jokes[jokeIndex] + '"';
+
     // === Sidebar Toggle ===
     const sidebar = document.getElementById('aiSidebar');
     const overlay = document.getElementById('aiOverlay');
@@ -251,6 +319,9 @@
         const text = input.value.trim();
         if (!text || isSending) return;
         isSending = true;
+
+        // Rotate joke on every message
+        showNewJoke();
 
         const messagesDiv = document.getElementById('aiMessages');
 
@@ -334,10 +405,11 @@
     // === New Chat ===
     document.getElementById('newChatBtn').addEventListener('click', function() {
         const messagesDiv = document.getElementById('aiMessages');
-        // Keep the joke card, info card, and AI intro (first 3 children)
-        while (messagesDiv.children.length > 3) {
+        // Keep the joke card, info card, start btn, and AI intro (first 4 children)
+        while (messagesDiv.children.length > 4) {
             messagesDiv.removeChild(messagesDiv.lastChild);
         }
+        showNewJoke();
         closeSidebar();
         addChatToList('New conversation');
     });

@@ -2519,6 +2519,7 @@ a.cal-day:active {
   line-height: 1.5;
   font-weight: 500;
   margin-bottom: 6px;
+  transition: opacity 0.2s ease;
 }
 .ai-joke-tagline {
   font-size: 12px;
@@ -2620,20 +2621,20 @@ a.cal-day:active {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 10px;
+  gap: 12px;
   width: 100%;
-  padding: 16px 24px;
-  margin: 6px 0 12px;
-  background: linear-gradient(135deg, #34c759, #30d158);
+  padding: 20px 24px;
+  margin: 8px 0 14px;
+  background: linear-gradient(135deg, #34c759 0%, #30d158 50%, #28c74e 100%);
   color: white;
-  font-size: 18px;
-  font-weight: 800;
-  letter-spacing: 1.5px;
+  font-size: 20px;
+  font-weight: 900;
+  letter-spacing: 2px;
   text-decoration: none;
-  border: none;
-  border-radius: 14px;
+  border: 3px solid rgba(255,255,255,0.25);
+  border-radius: 16px;
   cursor: pointer;
-  box-shadow: 0 4px 14px rgba(52, 199, 89, 0.4);
+  box-shadow: 0 6px 20px rgba(52, 199, 89, 0.45);
   transition: all 0.2s ease;
   animation: aiFadeIn 0.7s ease, aiPulseGlow 2s ease-in-out infinite;
 }
