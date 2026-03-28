@@ -37,9 +37,11 @@ builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationSc
         options.Cookie.SameSite = SameSiteMode.Lax;
     });
 
-// Ensure antiforgery cookies are also Secure
+// Suppress antiforgery cookie — we have IgnoreAntiforgeryTokenAttribute globally so it's unused
 builder.Services.AddAntiforgery(options =>
 {
+    options.SuppressXFrameOptionsHeader = true;
+    options.Cookie.Name = "__af";
     options.Cookie.SecurePolicy = CookieSecurePolicy.Always;
 });
 
@@ -62,7 +64,7 @@ if (!app.Environment.IsDevelopment())
 
 app.UseHttpsRedirection();
 
-// Add security headers (fixes Brave/Firefox "Not Secure" warnings)
+// Add security headers + strip unnecessary cookies
 app.Use(async (context, next) =>
 {
     context.Response.Headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains; preload";
@@ -71,6 +73,26 @@ app.Use(async (context, next) =>
     context.Response.Headers["Referrer-Policy"] = "strict-origin-when-cross-origin";
     context.Response.Headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()";
     context.Response.Headers["Content-Security-Policy"] = "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; connect-src 'self'; font-src 'self'; frame-ancestors 'self'";
+
+    // Strip Azure ARRAffinity cookies and antiforgery cookie from responses
+    context.Response.OnStarting(() =>
+    {
+        if (context.Response.Headers.TryGetValue("Set-Cookie", out var cookies))
+        {
+            var filtered = cookies.Where(c =>
+                c != null
+                && !c.StartsWith("ARRAffinity=", StringComparison.OrdinalIgnoreCase)
+                && !c.StartsWith("ARRAffinitySameSite=", StringComparison.OrdinalIgnoreCase)
+                && !c.Contains(".AspNetCore.Antiforgery", StringComparison.OrdinalIgnoreCase)
+                && !c.StartsWith("__af=", StringComparison.OrdinalIgnoreCase)
+            ).ToArray();
+            context.Response.Headers.Remove("Set-Cookie");
+            foreach (var cookie in filtered)
+                context.Response.Headers.Append("Set-Cookie", cookie);
+        }
+        return Task.CompletedTask;
+    });
+
     await next();
 });
 
