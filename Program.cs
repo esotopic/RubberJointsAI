@@ -998,7 +998,7 @@ RULES:
                 {
                     string toolId = block.GetProperty("id").GetString() ?? "";
                     string toolName = block.GetProperty("name").GetString() ?? "";
-                    var toolInput = block.GetProperty("input");
+                    var toolInput = block.GetProperty("input").Clone();
                     toolUseCalls.Add((toolId, toolName, toolInput));
                     assistantContentBlocks.Add(new { type = "tool_use", id = toolId, name = toolName, input = toolInput });
                 }
