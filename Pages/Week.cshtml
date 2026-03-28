@@ -28,7 +28,7 @@
     <div class="cal-week">
         @foreach (var day in Model.Days)
         {
-            <a href="/?date=@day.DateStr" class="cal-day @(day.IsToday ? "is-today" : "")" style="text-decoration:none;color:inherit;">
+            <a href="/Index?date=@day.DateStr" class="cal-day @(day.IsToday ? "is-today" : "")" style="text-decoration:none;color:inherit;">
                 <div class="cal-day-hdr">
                     <div class="cal-day-name" style="@(day.IsToday ? "color:#34c759;" : "")">
                         @day.DayName@(day.IsToday ? " (Today)" : "")
