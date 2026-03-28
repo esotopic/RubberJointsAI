@@ -90,15 +90,15 @@
             🔥 START TRAINING 💪
         </a>
 
-        <!-- Messages area -->
-        <div class="ai-messages" id="aiMessages">
+        <!-- Joke card — fixed, rotates on every message and page load -->
+        <div class="ai-joke-card" id="jokeCard">
+            <div class="ai-joke-icon">😂</div>
+            <div class="ai-joke-text" id="jokeText"></div>
+            <div class="ai-joke-tagline">— Your joints, probably</div>
+        </div>
 
-            <!-- Joke card — rotates on every message and page load -->
-            <div class="ai-joke-card" id="jokeCard">
-                <div class="ai-joke-icon">😂</div>
-                <div class="ai-joke-text" id="jokeText"></div>
-                <div class="ai-joke-tagline">— Your joints, probably</div>
-            </div>
+        <!-- Messages area (scrollable) -->
+        <div class="ai-messages" id="aiMessages">
 
             <!-- Today's Quick Glance (server-rendered info) -->
             <div class="ai-info-card">
@@ -405,8 +405,8 @@
     // === New Chat ===
     document.getElementById('newChatBtn').addEventListener('click', function() {
         const messagesDiv = document.getElementById('aiMessages');
-        // Keep the joke card, info card, and AI intro (first 3 children)
-        while (messagesDiv.children.length > 3) {
+        // Keep the info card and AI intro (first 2 children)
+        while (messagesDiv.children.length > 2) {
             messagesDiv.removeChild(messagesDiv.lastChild);
         }
         showNewJoke();
