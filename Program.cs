@@ -263,9 +263,13 @@ app.MapPost("/api/check", async (HttpContext context, RubberJointsAIRepository r
         string itemId = root.GetProperty("itemId").GetString() ?? "";
         int stepIndex = root.TryGetProperty("stepIndex", out var si) ? si.GetInt32() : 0;
         bool checkedState = root.TryGetProperty("checked", out var cp) && cp.GetBoolean();
-        // Allow specifying a date for checking past days; default to today
+        // Allow specifying a date for checking past days; default to today (Pacific time)
         string date = root.TryGetProperty("date", out var dp) ? dp.GetString() ?? "" : "";
-        if (string.IsNullOrEmpty(date)) date = DateTime.UtcNow.ToString("yyyy-MM-dd");
+        if (string.IsNullOrEmpty(date))
+        {
+            var pstCheck = TimeZoneInfo.FindSystemTimeZoneById("America/Los_Angeles");
+            date = TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, pstCheck).ToString("yyyy-MM-dd");
+        }
 
         await repository.SetCheckAsync(userId, date, itemType, itemId, stepIndex, checkedState);
 
@@ -384,6 +388,21 @@ app.MapPost("/api/preferences/toggle", async (HttpContext context, RubberJointsA
         await repository.SaveUserPreferencesAsync(prefs);
         await repository.RegenerateFuturePlanAsync(userId, prefs);
 
+        // When ADDING an exercise, ensure it appears on today's plan immediately.
+        // RegenerateFuturePlanAsync uses rotation which may not select it for today.
+        if (enabled && !string.IsNullOrEmpty(exerciseId))
+        {
+            var pstToggle = TimeZoneInfo.FindSystemTimeZoneById("America/Los_Angeles");
+            string todayToggle = TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, pstToggle).ToString("yyyy-MM-dd");
+            // Look up the exercise category from the DB
+            var exercise = (await repository.GetAllExercisesAsync()).FirstOrDefault(e => e.Id == exerciseId);
+            if (exercise != null)
+            {
+                // AddManualPlanEntryAsync is a no-op if already present for today
+                await repository.AddManualPlanEntryAsync(userId, todayToggle, exerciseId, exercise.Category);
+            }
+        }
+
         return Results.Json(new { success = true, enabled });
     }
     catch (Exception ex)
@@ -483,7 +502,9 @@ app.MapGet("/api/debug", async (HttpContext context, RubberJointsAIRepository re
         return Results.Unauthorized();
 
     string userId = context.User.Identity?.Name ?? "default";
-    string todayDate = DateTime.UtcNow.ToString("yyyy-MM-dd");
+    var pstDebug = TimeZoneInfo.FindSystemTimeZoneById("America/Los_Angeles");
+    var pacificDebug = TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, pstDebug);
+    string todayDate = pacificDebug.ToString("yyyy-MM-dd");
 
     try
     {
@@ -493,6 +514,7 @@ app.MapGet("/api/debug", async (HttpContext context, RubberJointsAIRepository re
             userId,
             todayDate,
             utcNow = DateTime.UtcNow.ToString("o"),
+            pacificNow = pacificDebug.ToString("o"),
             checksCount = checks.Count,
             checks = checks.Select(c => new { c.ItemType, c.ItemId, c.StepIndex, c.Checked })
         });
@@ -517,7 +539,8 @@ app.MapPost("/api/milestone", async (HttpContext context, RubberJointsAIReposito
         using var doc = JsonDocument.Parse(body);
         var root = doc.RootElement;
         string id = root.GetProperty("id").GetString() ?? "";
-        string today = DateTime.UtcNow.ToString("yyyy-MM-dd");
+        var pstMilestone = TimeZoneInfo.FindSystemTimeZoneById("America/Los_Angeles");
+        string today = TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, pstMilestone).ToString("yyyy-MM-dd");
 
         await repository.CompleteUserMilestoneAsync(userId, id, today);
         return Results.Json(new { success = true });
@@ -534,7 +557,8 @@ app.MapPost("/api/logsession", async (HttpContext context, RubberJointsAIReposit
         return Results.Json(new { success = false, error = "not authenticated" });
 
     string userId = context.User.Identity?.Name ?? "default";
-    string todayDate = DateTime.UtcNow.ToString("yyyy-MM-dd");
+    var pstLog = TimeZoneInfo.FindSystemTimeZoneById("America/Los_Angeles");
+    string todayDate = TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, pstLog).ToString("yyyy-MM-dd");
 
     try
     {
